@@ -487,6 +487,23 @@ class _LPDFT(mcpdft.MultiStateMCPDFTSolver):
 
         return Gradients(self, state=state)
 
+    def dip_moment(self, unit='Debye', origin='Coord_Center', state=0):
+        from pyscf.mcscf import mc1step
+        from pyscf.mcscf.df import _DFCASSCF
+        if not isinstance(self, mc1step.CASSCF):
+            raise NotImplementedError("CASCI-based LPDFT dipole moments")
+        elif getattr(self, 'frozen', None) is not None:
+            raise NotImplementedError("LPDFT dipole moments with frozen orbitals")
+        elif isinstance(self, _DFCASSCF):
+            raise NotImplementedError("LPDFT dipole moments with density-fitting ERIs")
+        
+        print("our function!") 
+        from pyscf.prop.dip_moment.lpdft import ElectricDipole
+        dip_obj = ElectricDipole(self)
+        mol_dipole = dip_obj.kernel(state=state, unit=unit, origin=origin)
+        return mol_dipole
+ 
+
 
 class _LPDFTMix(_LPDFT):
     '''State Averaged Mixed Linerized PDFT

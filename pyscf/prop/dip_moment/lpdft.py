@@ -6,8 +6,7 @@ import numpy as np
 from pyscf.data import nist
 from pyscf import lib
 from pyscf.grad import lpdft as lpdft_grad
-from pyscf.prop.dip_moment.mcpdft import mcpdft_HellmanFeynman_dipole, get_guage_origin, nuclear_dipole, get_LdotJnuc
-from pyscf.prop.dip_moment.lpdft import ElectricDipole
+from pyscf.prop.dip_moment.mcpdft import mcpdft_HellmanFeynman_dipole, get_guage_origin, nuclear_dipole
 
 class ElectricDipole (lpdft_grad.Gradients):
 

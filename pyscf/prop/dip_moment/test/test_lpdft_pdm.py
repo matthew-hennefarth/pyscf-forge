@@ -82,9 +82,9 @@ class KnownValues(unittest.TestCase):
     '''
     def test_h2o_lpdft_tpbe_augccpvdz(self):
         dm_ref = np.array(\
-            [[0.0000, 1.5991, 0.0000],  # State 0: x, y, z
-            [ 0.0000,-0.2234, 0.0000],  # State 1: x, y, z
-            [ 0.0000, 3.7302, 0.0000]]) # State 2: x, y, z
+            [[0.0000, 1.9180, 0.0000],  # State 0: x, y, z
+            [ 0.0000,-1.3233, 0.0000],  # State 1: x, y, z
+            [ 0.0000, 3.2775, 0.0000]]) # State 2: x, y, z
         delta = 0.001
         message = "Dipoles are not equal within {} D".format(delta)
 

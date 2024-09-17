@@ -503,7 +503,37 @@ class _LPDFT(mcpdft.MultiStateMCPDFTSolver):
         mol_dipole = dip_obj.kernel(state=state, unit=unit, origin=origin)
         return mol_dipole
  
+#Helen editing starts here
 
+    def trans_moment (self, unit='Debye', origin='Coord_Center', state=None):
+        from pyscf.mcscf import mc1step
+        from pyscf.mcscf.df import _DFCASSCF
+        if not isinstance (self, mc1step.CASSCF):
+            raise NotImplementedError ("CASCI-based LPDFT dipole moments")
+        elif getattr (self, 'frozen', None) is not None:
+            raise NotImplementedError ("LPDFT dipole moments with frozen orbitals")
+        elif isinstance (self, _DFCASSCF):
+            raise NotImplementedError ("LPDFT dipole moments with density-fitting ERIs")
+        
+        import os
+        mypath = os.path.dirname (os.path.dirname (os.path.abspath (__file__)))
+        myproppath = os.path.join (mypath, 'prop')
+        import warnings
+        with warnings.catch_warnings ():
+            warnings.filterwarnings (
+                "ignore", message="Module.*is under testing")
+            from pyscf import prop
+        prop.__path__.append (myproppath)
+        prop.__path__=list(set(prop.__path__))
+        
+        from pyscf.prop.trans_dip_moment.lpdft import TransitionDipole
+        if not isinstance(state, list) or len(state)!=2:
+            raise RuntimeError ('Transition dipole requires two states')
+        tran_dip_obj = TransitionDipole(self)
+        mol_trans_dipole = tran_dip_obj.kernel (state=state, unit=unit, origin=origin)
+        return mol_trans_dipole
+
+#Helen editing ending here
 
 class _LPDFTMix(_LPDFT):
     '''State Averaged Mixed Linerized PDFT

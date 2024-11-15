@@ -581,9 +581,10 @@ class _PDFT:
         else:
             return pdft_veff1, pdft_veff2
 
+
     def get_pdft_feff(self, mo=None, ci=None, state=0, casdm1s=None,
                       casdm2=None, c_dm1s=None, c_cascm2=None,
-                      paaa_only=False, aaaa_only=False, jk_pc=False, incl_coul=False, delta=False):
+                      paaa_only=False, aaaa_only=False, jk_pc=False, incl_coul=False, delta=False, trans=False):
         """casdm1s and casdm2 are the values that are put into the kernel
         whereas the c_dm1s and c_cascm2 are the densities which multiply the
         kernel function (ie the contraction in terms of normal 1 and 2-rdm
@@ -615,7 +616,7 @@ class _PDFT:
                                                   max_memory=self.max_memory,
                                                   paaa_only=paaa_only,
                                                   aaaa_only=aaaa_only,
-                                                  jk_pc=jk_pc, delta=delta)
+                                                  jk_pc=jk_pc, delta=delta, trans=trans)
 
         if incl_coul:
             if delta:

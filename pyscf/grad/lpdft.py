@@ -604,12 +604,32 @@ class Gradients(sacasscf.Gradients):
         # This is the zero-order density
         casdm1s_0, casdm2_0 = self.base.get_casdm12_0()
 
+        ncas, nelecas = mc.ncas, mc.nelecas
+        ncore = mc.ncore
+        ci_bra = mc.ci(state[0])
+        ci_ket = mc.ci(state[1])
+
+        if hasattr (state, '__len__'): 
+            trans = True
+            mo_cas = mo[:,ncore:][:,:ncas]
+            moH_cas = mo_cas.conj ().T
+
+            casdm1s = direct_spin1.trans_rdm1s(ci_bra, ci_ket, ncas, nelecas)
+            casdm2 = direct_spin1.trans_rdm12(ci_bra, ci_ket, ncas, nelecas)[1]
+            dm1s_cas = np.dot (casdm1s, moH_cas)
+            dm1s = np.dot(mo_cas, dm1s_cas).transpose(1,0,2)
+
+        else:
         # This is the density of the state we are differentiating with respect to
-        casdm1s = self.base.make_one_casdm1s(ci=ci, state=state)
-        casdm2 = self.base.make_one_casdm2(ci=ci, state=state)
-        dm1s = _dms.casdm1s_to_dm1s(self.base, casdm1s, mo_coeff=mo)
+            trans = False
+            casdm1s = self.base.make_one_casdm1s(ci=ci, state=state)
+            casdm2 = self.base.make_one_casdm2(ci=ci, state=state)
+            dm1s = _dms.casdm1s_to_dm1s(self.base, casdm1s, mo_coeff=mo)
 
         cascm2 = _dms.dm2_cumulant(casdm2, casdm1s)
+
+        
+
 
         return self.base.get_pdft_feff(
             mo=mo,
@@ -622,6 +642,7 @@ class Gradients(sacasscf.Gradients):
             paaa_only=True,
             incl_coul=True,
             delta=True,
+            trans = trans,
         )
 
     def get_Aop_Adiag(

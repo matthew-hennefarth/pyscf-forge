@@ -25,7 +25,7 @@ import gc
 
 
 def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory=2000, hermi=1, paaa_only=False,
-           aaaa_only=False, jk_pc=False, delta=False):
+           aaaa_only=False, jk_pc=False, delta=False, trans=False): 
     r'''Get the 1- and 2-body effective gradient responses from MC-PDFT. The
     $\rho \cdot \mathbf{F}$ terms, or Hessian vector products.
 
@@ -146,13 +146,18 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
         rho = np.asarray([make_rho(i, ao, mask, xctype) for i in range(2)])
         crho = np.asarray([make_crho(i, ao, mask, xctype) for i in range(2)])
         rho_a = sum([make_rho_a(i, ao, mask, xctype) for i in range(2)])
-        rho_c = make_rho_c(0, ao, mask, xctype)
+        rho_c = np.asarray([make_rho_c(i, ao, mask, xctype) for i in range(2)])
         t0 = logger.timer(ot, 'untransformed densities (core and total)', *t0)
 
         Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas,
                                     dens_deriv, mask)
-        cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
+        if trans:
+            cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
+                                     dens_deriv, mask, rho_c=rho_c)
+        else:
+            cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
                                      dens_deriv, mask)
+
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
 
         if delta:
@@ -175,7 +180,7 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
                                   hermi=1)
         t0 = logger.timer(ot, '1-body effective gradient response calculation',
                           *t0)
-
+        rho_c = sum(rho_c)
         feff2._accumulate(ot, ao, weight, rho_c, rho_a, fPi, mask, shls_slice,
                           ao_loc)
         t0 = logger.timer(ot, '2-body effective gradient response calculation',

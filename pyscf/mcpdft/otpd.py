@@ -36,7 +36,7 @@ def _grid_ao2mo (mol, ao, mo_coeff, non0tab=None, shls_slice=None,
     return mo
 
 
-def get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas, deriv=0,
+def get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas, rho_c=None, deriv=0,
         non0tab=None):
     r'''Compute the on-top pair density and its derivatives on a grid:
 
@@ -78,16 +78,24 @@ def get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas, deriv=0,
         deriv = 1 : value, d/dx, d/dy, d/dz
         deriv = 2 : value, d/dx, d/dy, d/dz, d^2/d|r1-r2|^2_(r1=r2)
     '''
-    # Fix dimensionality of rho and ao
+    # Fix dimensionality of rho and ao and rho_c
     if rho.ndim == 2:
         rho = rho.reshape (rho.shape[0], 1, rho.shape[1])
     if ao.ndim == 2:
         ao = ao.reshape (1, ao.shape[0], ao.shape[1])
+    if not rho_c is None:
+        if rho_c.ndim == 2:
+            rho_c = rho_c.reshape (rho_c.shape[0], 1, rho_c.shape[1])
+
+    rho += rho_c
 
     # First cumulant and derivatives (chain rule! product rule!)
     t0 = (logger.process_clock (), logger.perf_counter ())
     Pi = np.zeros_like (rho[0])[:min(rho.shape[1],5)]
     Pi[0] = rho[0,0] * rho[1,0]
+    if rho_c is not None:
+        Pi[0] -= rho_c[0,0] * rho_c[1,0]
+
     if deriv > 0:
         assert (rho.shape[1] >= 4), rho.shape
         assert (ao.shape[0] >= 4), ao.shape

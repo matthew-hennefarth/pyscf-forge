@@ -422,6 +422,7 @@ class Gradients(sacasscf.Gradients):
         ci=None,
         feff1=None,
         feff2=None,
+        trans=False,
         **kwargs
     ):
         """Returns the derivative of the L-PDFT energy for the given state with respect to MO parameters and CI
@@ -479,10 +480,23 @@ class Gradients(sacasscf.Gradients):
 
         fcasscf.get_hcore = self.base.get_lpdft_hcore
         fcasscf_sa.get_hcore = lambda: feff1
+        
+        # for TDM purposes
+        
+        casdm1 = 0.5 * (casdm1 + casdm1.T)
+        casdm2 = 0.5 * (casdm2 + casdm2.transpose (1,0,3,2))
 
-        g_all_explicit = newton_casscf.gen_g_hop(
-            fcasscf, mo, ci[state], self.base.veff2, verbose
-        )[0]
+        if trans:
+            g_all_explicit = newton_casscf.gen_g_hop(
+                fcasscf, mo, 1, casdm1, casdm2)[0]
+            )[0]
+        
+        else:
+            g_all_explicit = newton_casscf.gen_g_hop(
+                fcasscf, mo, ci[state], self.base.veff2, verbose
+            )[0]
+           
+            
         g_all_implicit = newton_casscf.gen_g_hop(fcasscf_sa, mo, ci, feff2, verbose)[0]
 
         # Debug

@@ -482,11 +482,12 @@ class Gradients(sacasscf.Gradients):
         fcasscf_sa.get_hcore = lambda: feff1
         
         # for TDM purposes
+        #DOUBLE CHECK THIS AGAIN
         
-        casdm1 = 0.5 * (casdm1 + casdm1.T)
-        casdm2 = 0.5 * (casdm2 + casdm2.transpose (1,0,3,2))
-
         if trans:
+            casdm1 = 0.5 * (casdm1 + casdm1.T)
+            casdm2 = 0.5 * (casdm2 + casdm2.transpose (1,0,3,2))
+
             g_all_explicit = newton_casscf.gen_g_hop(
                 fcasscf, mo, 1, casdm1, casdm2)[0]
             )[0]

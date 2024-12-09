@@ -83,12 +83,12 @@ def get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas, rho_c=None, deriv=0,
         rho = rho.reshape (rho.shape[0], 1, rho.shape[1])
     if ao.ndim == 2:
         ao = ao.reshape (1, ao.shape[0], ao.shape[1])
+    
     if rho_c is not None:
+        rho += rho_c
         if rho_c.ndim == 2:
             rho_c = rho_c.reshape (rho_c.shape[0], 1, rho_c.shape[1])
-
-    rho += rho_c
-
+    
     # First cumulant and derivatives (chain rule! product rule!)
     t0 = (logger.process_clock (), logger.perf_counter ())
     Pi = np.zeros_like (rho[0])[:min(rho.shape[1],5)]

@@ -21,6 +21,7 @@ from pyscf.lib import logger, tag_array, pack_tril, current_memory
 from pyscf.mcscf import casci, mc1step, newton_casscf
 from pyscf.grad import sacasscf
 from pyscf.mcscf.casci import cas_natorb
+from pyscf.fci import direct_spin1
 
 from pyscf.mcpdft.otpd import get_ontop_pair_density, _grid_ao2mo
 from pyscf.mcpdft.tfnal_derivs import contract_fot, unpack_vot, contract_vot
@@ -622,10 +623,10 @@ class Gradients(sacasscf.Gradients):
         # This is the zero-order density
         casdm1s_0, casdm2_0 = self.base.get_casdm12_0()
 
-        ncas, nelecas = mc.ncas, mc.nelecas
-        ncore = mc.ncore
-        ci_bra = mc.ci(state[0])
-        ci_ket = mc.ci(state[1])
+        ncas, nelecas = self.base.ncas, self.base.nelecas
+        ncore = self.base.ncore
+        ci_bra = ci[state[0]]
+        ci_ket = ci[state[1]]
 
         if hasattr (state, '__len__'): 
             trans = True

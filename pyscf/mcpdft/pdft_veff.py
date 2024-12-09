@@ -116,7 +116,7 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
     # Density matrices
     dm_core = mo_core @ mo_core.T
     dm_cas = dm1s - dm_core[None, :, :]
-    dm_core *= 2
+    dm_core *=2
 
     # Propagate speedup tags
     if hasattr(dm1s, 'mo_coeff') and hasattr(dm1s, 'mo_occ'):
@@ -124,6 +124,7 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
                             mo_occ=dm1s.mo_occ[:, :ncore].sum(0))
         dm_cas = tag_array(dm_cas, mo_coeff=dm1s.mo_coeff[:, :, ncore:nocc],
                            mo_occ=dm1s.mo_occ[:, ncore:nocc])
+
 
     # rho generators
     make_rho_c = ni._gen_rho_evaluator(ot.mol, dm_core, hermi)[0]
@@ -158,10 +159,10 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
                                                   dens_deriv, max_memory, blksize=pdft_blksize):
         rho = np.asarray([make_rho(i, ao, mask, xctype) for i in range(2)])
         rho_a = sum([make_rho_a(i, ao, mask, xctype) for i in range(2)])
-        rho_c = np.asarray([make_rho_c(i, ao, mask, xctype) for i in range(2)])     #I put rho_c np.asarray so it will have attribute ndim  should i change to zero? probably 
+        rho_c = make_rho_c(0, ao, mask, xctype)
         t0 = logger.timer(ot, 'untransformed densities (core and total)', *t0)
         Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas,
-                                    dens_deriv, mask)
+                                    deriv=dens_deriv, non0tab=mask)
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
         eot, vot = ot.eval_ot(rho, Pi, weights=weight)[:2]
         E_ot += eot.dot(weight)

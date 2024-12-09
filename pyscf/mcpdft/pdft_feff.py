@@ -101,12 +101,12 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
     # Density matrices
     dm_core = mo_core @ mo_core.T
     dm_cas = dm1s - dm_core[None, :, :]
-    dm_core *= 2
+    dm_core = [dm_core, dm_core]
 
     # Propagate speedup tags
     if hasattr(dm1s, 'mo_coeff') and hasattr(dm1s, 'mo_occ'):
-        dm_core = tag_array(dm_core, mo_coeff=dm1s.mo_coeff[0, :, :ncore],
-                            mo_occ=dm1s.mo_occ[:, :ncore].sum(0))
+        dm_core = tag_array(dm_core, mo_coeff=dm1s.mo_coeff[:, :, :ncore],
+                            mo_occ=dm1s.mo_occ[:, :ncore])
         dm_cas = tag_array(dm_cas, mo_coeff=dm1s.mo_coeff[:, :, ncore:nocc],
                            mo_occ=dm1s.mo_occ[:, ncore:nocc])
 
@@ -153,7 +153,7 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
                                     dens_deriv, mask)
         if trans:
             cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
-                                     dens_deriv, mask, rho_c=rho_c)
+                                  deriv=dens_deriv, non0tab=mask, rho_c=rho_c)
         else:
             cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
                                      dens_deriv, mask)
@@ -180,8 +180,8 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
                                   hermi=1)
         t0 = logger.timer(ot, '1-body effective gradient response calculation',
                           *t0)
-        rho_c = sum(rho_c)
-        feff2._accumulate(ot, ao, weight, rho_c, rho_a, fPi, mask, shls_slice,
+        #rho_c = sum(rho_c)
+        feff2._accumulate(ot, ao, weight, rho_c.sum(0), rho_a, fPi, mask, shls_slice,
                           ao_loc)
         t0 = logger.timer(ot, '2-body effective gradient response calculation',
                           *t0)

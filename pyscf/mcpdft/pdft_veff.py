@@ -160,6 +160,7 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
         rho = np.asarray([make_rho(i, ao, mask, xctype) for i in range(2)])
         rho_a = sum([make_rho_a(i, ao, mask, xctype) for i in range(2)])
         rho_c = make_rho_c(0, ao, mask, xctype)
+        #rho_c = np.asarray([make_rho_c(i, ao, mask, xctype) for i in range(2)])
         t0 = logger.timer(ot, 'untransformed densities (core and total)', *t0)
         Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas,
                                     deriv=dens_deriv, non0tab=mask)

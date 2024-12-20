@@ -147,16 +147,17 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
         crho = np.asarray([make_crho(i, ao, mask, xctype) for i in range(2)])
         rho_a = sum([make_rho_a(i, ao, mask, xctype) for i in range(2)])
         rho_c = np.asarray([make_rho_c(i, ao, mask, xctype) for i in range(2)])
+        print('PRINTING rho_c Here - feff after: ', rho_c)
         t0 = logger.timer(ot, 'untransformed densities (core and total)', *t0)
 
         Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas,
-                                    dens_deriv, mask)
+                                  deriv=dens_deriv, non0tab=mask)
         if trans:
             cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
                                   deriv=dens_deriv, non0tab=mask, rho_c=rho_c)
         else:
             cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
-                                     dens_deriv, mask)
+                                  deriv=dens_deriv, non0tab=mask)          #rho_c=None?
 
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
 
@@ -214,10 +215,10 @@ def lazy_kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_cas, hermi=1, max_memory=
         rho = np.asarray([m[0](0, ao, mask, xctype) for m in make_rho])
         crho = np.asarray([m[0](0, ao, mask, xctype) for m in make_crho])
         t0 = logger.timer(ot, 'untransformed density', *t0)
-        Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas, dens_deriv,
-                                    mask)
+        Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas, deriv=dens_deriv,
+                                    non0tab=mask)
         cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
-                                     dens_deriv, mask)
+                                     deriv=dens_deriv, non0tab=mask)
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
 
         if delta:

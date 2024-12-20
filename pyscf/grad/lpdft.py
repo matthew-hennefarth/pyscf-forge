@@ -22,6 +22,7 @@ from pyscf.mcscf import casci, mc1step, newton_casscf
 from pyscf.grad import sacasscf
 from pyscf.mcscf.casci import cas_natorb
 from pyscf.fci import direct_spin1
+from pyscf import lib
 
 from pyscf.mcpdft.otpd import get_ontop_pair_density, _grid_ao2mo
 from pyscf.mcpdft.tfnal_derivs import contract_fot, unpack_vot, contract_vot
@@ -467,16 +468,24 @@ class Gradients(sacasscf.Gradients):
             feff1, feff2 = self.get_otp_gradient_response(mo, ci, state)
 
         log = logger.new_logger(self, verbose)
+        
+        print('Printing state here', state)
 
-        ndet = self.na_states[state] * self.nb_states[state]
-        fcasscf = self.make_fcasscf(state)
+        if hasattr (state, '__len__'): 
+            state = list(map(int, state))
+            ndet = self.na_states[state[0]] * self.nb_states[state[0]]
+            fcasscf = self.make_fcasscf(state)
+
+        else:   
+            ndet = self.na_states[state] * self.nb_states[state]
+            fcasscf = self.make_fcasscf(state)
 
         # Exploit (hopefully) the fact that the zero-order density is
         # really just the State Average Density!
         fcasscf_sa = self.make_fcasscf_sa()
 
         fcasscf.mo_coeff = mo
-        fcasscf.ci = ci[state]
+        #fcasscf.ci = ci[state]
 
         fcasscf.get_hcore = self.base.get_lpdft_hcore
         fcasscf_sa.get_hcore = lambda: feff1
@@ -485,16 +494,22 @@ class Gradients(sacasscf.Gradients):
         g_all_explicit = np.zeros(self.ngorb+self.nci)
         
         if hasattr (state, '__len__'):
-            casdm1 = 0.5 * (casdm1 + casdm1.T)
-            casdm2 = 0.5 * (casdm2 + casdm2.transpose (1,0,3,2))
-            
+            state = list(map(int, state))
+            casdm1 = direct_spin1.trans_rdm1s(ci[state[0]], ci[state[1]], self.ncas, self.nelecas)
+            #casdm1 = 0.5 * (np.array(casdm1) + np.array(casdm1).T)
+            casdm1 = np.array(casdm1) + (np.array(casdm1)).transpose(0, 2, 1) 
+            casdm2 = direct_spin1.trans_rdm12(ci[state[0]], ci[state[1]], self.ncas, self.nelecas)[1]
+            casdm2 = 0.5 * (casdm2 + casdm2.transpose(1,0,3,2))
+   #I do not think this is right bc i have to redefine all of these variables here... previously defined above         
+            ncas, nelecas = self.base.ncas, self.base.nelecas
+            ncore = self.base.ncore
+            mo_cas = mo[:,ncore:][:,:ncas]
+            moH_cas = mo_cas.conj ().T
+            moH = mo.conj ().T
             vnocore = self.base.veff2.vhf_c.copy()
             vnocore[:,:ncore] = -moH @ fcasscf.get_hcore() @ mo[:,:ncore]
-            with lib.temporary_env(veff2, vhf_c=vnocore):
-                g_all_explicit[:self.ngorb] = 2 * mc1step.gen_g_hop (fcasscf, mo, 1, casdm1, casdm2, veff2)[0]
-                # g_all_explicit = 2 * mc1step.gen_g_hop (fcasscf, mo, 1, casdm1, casdm2, veff2)[0]
-           # g_all_explicit = newton_casscf.gen_g_hop(
-           #     fcasscf, mo, 1, casdm1, casdm2)[0])[0]
+            with lib.temporary_env(self.base.veff2, vhf_c=vnocore):
+                g_all_explicit[:self.ngorb] = 2 * mc1step.gen_g_hop (fcasscf, mo, 1, casdm1, casdm2, self.base.veff2)[0]
         
         else:
             g_all_explicit = newton_casscf.gen_g_hop(

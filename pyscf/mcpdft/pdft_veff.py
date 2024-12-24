@@ -225,7 +225,7 @@ def lazy_kernel(ot, dm1s, cascm2, mo_cas, max_memory=2000, hermi=1,
         rho = np.asarray([m[0](0, ao, mask, xctype) for m in make_rho])
         t0 = logger.timer(ot, 'untransformed density', *t0)
         Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas,
-                                    dens_deriv, mask)
+                                    deriv=dens_deriv, non0tab=mask)
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
         _, vot = ot.eval_ot(rho, Pi, weights=weight)[:2]
         vrho, vPi = vot

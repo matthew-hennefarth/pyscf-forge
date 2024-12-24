@@ -153,10 +153,10 @@ def get_ontop_response(
             )
 
             Pi = get_ontop_pair_density(
-                ot, rho, aoval, cascm2, mo_cas, ot.dens_deriv, mask
+                ot, rho, aoval, cascm2, mo_cas, deriv=ot.dens_deriv, non0tab=mask
             )
             Pi_0 = get_ontop_pair_density(
-                ot, rho_0, aoval, cascm2_0, mo_cas_0, ot.dens_deriv, mask
+                ot, rho_0, aoval, cascm2_0, mo_cas_0, deriv=ot.dens_deriv, non0tab=mask
             )
             delta_Pi = Pi - Pi_0
             t1 = logger.timer(

@@ -153,11 +153,11 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
         Pi = get_ontop_pair_density(ot, rho, ao, cascm2, mo_cas,
                                   deriv=dens_deriv, non0tab=mask)
         if trans:
-            cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
-                                  deriv=dens_deriv, non0tab=mask, rho_c=rho_c)
+            cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas, rho_c=rho_c,
+                                  deriv=dens_deriv, non0tab=mask)
         else:
             cPi = get_ontop_pair_density(ot, crho, ao, c_cascm2, mo_cas,
-                                  deriv=dens_deriv, non0tab=mask)          #rho_c=None?
+                                  deriv=dens_deriv, non0tab=mask)          
 
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
 

@@ -68,6 +68,7 @@ def energy_ot (ot, casdm1s, casdm2, mo_coeff, ncore, max_memory=2000, hermi=1):
     ni, xctype = ot._numint, ot.xctype
     if xctype=='HF': return E_ot
     dens_deriv = ot.dens_deriv
+    rho_c = None                #set rho_c = None here - Helen
 
     nao = mo_coeff.shape[0]
     ncas = casdm2.shape[0]
@@ -83,8 +84,8 @@ def energy_ot (ot, casdm1s, casdm2, mo_coeff, ncore, max_memory=2000, hermi=1):
             dens_deriv, max_memory):
         rho = np.asarray ([m[0] (0, ao, mask, xctype) for m in make_rho])
         t0 = logger.timer (ot, 'untransformed density', *t0)
-        Pi = get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas,
-            dens_deriv, mask)
+        Pi = get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas,   
+            deriv=dens_deriv, non0tab=mask)
         t0 = logger.timer (ot, 'on-top pair density calculation', *t0)
         if rho.ndim == 2:
             rho = np.expand_dims (rho, 1)

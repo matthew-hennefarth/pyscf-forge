@@ -85,9 +85,9 @@ def get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas, rho_c=None, deriv=0,
         ao = ao.reshape (1, ao.shape[0], ao.shape[1])
     
     print('PRINTING rho_c Here - otpd: ', rho_c)
-   
+    print('PRINTING deriv 1 Here - otpd: ', deriv)
+
     if rho_c is not None:
-  #      rho += rho_c
         if rho_c.ndim == 2:
             rho_c = rho_c.reshape (rho_c.shape[0], 1, rho_c.shape[1])
             rho += rho_c

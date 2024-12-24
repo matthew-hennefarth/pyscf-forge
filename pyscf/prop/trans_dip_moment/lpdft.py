@@ -2,12 +2,48 @@ from pyscf.lib import logger
 import numpy as np
 from pyscf.data import nist
 from pyscf import lib
+from functools import reduce
 from pyscf.prop.dip_moment import lpdft
 from pyscf.grad import lpdft as lpdft_grad
 from pyscf.prop.dip_moment.mcpdft import mcpdft_HellmanFeynman_dipole, get_guage_origin
+from pyscf.fci import direct_spin1
 
-#Not sure if we even need this line below?
-#from pyscf.grad.mspdft import mspdft_heff_response
+def _unpack_state (state):
+    if hasattr (state, '__len__'): return state[0], state[1]
+    return state, state
+
+#mc or self in the arguments?
+#def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci_bra=None, ci_ket=None, origin='Coord_Center'):
+def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci_bra=None, ci_ket=None, origin='Coord_Center'):
+    if mo_coeff is None: mo_coeff = mc.mo_coeff
+    if state is None: state   = self.state
+    if ci is None: ci = mc.ci
+    ket, bra = _unpack_state (state)
+    if ci_bra is None: ci_bra = ci[:,bra]
+    if ci_ket is None: ci_ket = ci[:,ket]
+    if mc.frozen is not None:
+        raise NotImplementedError
+
+    mol = mc.mol
+    ncore = mc.ncore
+    ncas = mc.ncas
+    nocc = ncore + ncas
+    nelecas = mc.nelecas
+
+    mo_core = mo_coeff[:,:ncore]
+    mo_cas = mo_coeff[:,ncore:nocc]
+
+    casdm1 = direct_spin1.trans_rdm12 (ci[state[0]], ci[state[1]], mc.ncas, mc.nelecas)[0]
+    casdm1 = 0.5 * (np.array(casdm1) + np.array(casdm1).T)
+
+    tdm = reduce(np.dot, (mo_cas, casdm1, mo_cas.T))
+
+    center = get_guage_origin(mol,origin)
+    with mol.with_common_orig(center):
+        ao_dip = mol.intor_symmetric('int1e_r', comp=3)
+    elec_term = -np.tensordot(ao_dip, tdm).real
+    
+    return elec_term
 
 class TransitionDipole (lpdft.ElectricDipole):
 
@@ -27,8 +63,6 @@ class TransitionDipole (lpdft.ElectricDipole):
         log.note('Oscillator strength  : %9.5f', osc)
         return mol_dip
 
-    # lpdft dip_moment get_ham_response from pyscf-forge/pyscf/prop/dip_moment/lpdft.py
-    # removed the nuclear term
     def get_ham_response(self, state=None, verbose=None, mo=None,
             ci=None, origin='Coord_Center', **kwargs):
         if state is None: state   = self.state
@@ -38,9 +72,7 @@ class TransitionDipole (lpdft.ElectricDipole):
 
         fcasscf = self.make_fcasscf (state)
         fcasscf.mo_coeff = mo
-        fcasscf.ci = ci[state]
+        fcasscf.ci = ci
 
-        elec_term = mcpdft_HellmanFeynman_dipole (fcasscf, mo_coeff=mo, ci=ci[state], origin=origin)
-#       nucl_term = nuclear_dipole(fcasscf, origin=origin)
-#       total = nucl_term + elec_term
-        return elect_term
+        elec_term = lpdft_trans_HellmanFeynman_dipole (fcasscf, mo_coeff=mo, state=state, ci_bra = ci[state[0]], ci_ket = ci[state[1]], origin=origin)
+        return elec_term

@@ -495,17 +495,14 @@ class Gradients(sacasscf.Gradients):
         
         if hasattr (state, '__len__'):
             state = list(map(int, state))
-            casdm1 = direct_spin1.trans_rdm1s(ci[state[0]], ci[state[1]], self.ncas, self.nelecas)
-            #casdm1 = 0.5 * (np.array(casdm1) + np.array(casdm1).T)
-            casdm1 = np.array(casdm1) + (np.array(casdm1)).transpose(0, 2, 1) 
-            casdm2 = direct_spin1.trans_rdm12(ci[state[0]], ci[state[1]], self.ncas, self.nelecas)[1]
+            
+            casdm1, casdm2 = direct_spin1.trans_rdm12 (ci[state[0]], ci[state[1]], self.ncas, self.nelecas)
+            casdm1 = 0.5 * (np.array(casdm1) + np.array(casdm1).T)
             casdm2 = 0.5 * (casdm2 + casdm2.transpose(1,0,3,2))
-   #I do not think this is right bc i have to redefine all of these variables here... previously defined above         
-            ncas, nelecas = self.base.ncas, self.base.nelecas
+            
             ncore = self.base.ncore
-            mo_cas = mo[:,ncore:][:,:ncas]
-            moH_cas = mo_cas.conj ().T
             moH = mo.conj ().T
+            
             vnocore = self.base.veff2.vhf_c.copy()
             vnocore[:,:ncore] = -moH @ fcasscf.get_hcore() @ mo[:,:ncore]
             with lib.temporary_env(self.base.veff2, vhf_c=vnocore):
@@ -544,17 +541,19 @@ class Gradients(sacasscf.Gradients):
         g_all = self.pack_uniq_var(gmo_implicit, gci_implicit)
 
         g_all[: self.ngorb] += g_all_explicit[: self.ngorb]
-        offs = (
-            sum(
-                [
-                    na * nb
-                    for na, nb in zip(self.na_states[:state], self.nb_states[:state])
-                ]
+        
+        if not hasattr (state, '__len__'): 
+            offs = (
+                sum(
+                    [
+                        na * nb
+                        for na, nb in zip(self.na_states[:state], self.nb_states[:state])
+                    ]
+                )
+                if root > 0
+                else 0
             )
-            if root > 0
-            else 0
-        )
-        g_all[self.ngorb :][offs:][:ndet] += g_all_explicit[self.ngorb :]
+            g_all[self.ngorb :][offs:][:ndet] += g_all_explicit[self.ngorb :]
 
         gorb, gci = self.unpack_uniq_var(g_all)
         log.debug("g_all orb:\n{}".format(gorb))
@@ -640,11 +639,12 @@ class Gradients(sacasscf.Gradients):
 
         ncas, nelecas = self.base.ncas, self.base.nelecas
         ncore = self.base.ncore
-        ci_bra = ci[state[0]]
-        ci_ket = ci[state[1]]
 
         if hasattr (state, '__len__'): 
             trans = True
+            ci_bra = ci[state[0]]
+            ci_ket = ci[state[1]]
+            
             mo_cas = mo[:,ncore:][:,:ncas]
             moH_cas = mo_cas.conj ().T
 

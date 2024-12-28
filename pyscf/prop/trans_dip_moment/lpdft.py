@@ -5,15 +5,12 @@ from pyscf import lib
 from functools import reduce
 from pyscf.prop.dip_moment import lpdft
 from pyscf.grad import lpdft as lpdft_grad
-from pyscf.prop.dip_moment.mcpdft import mcpdft_HellmanFeynman_dipole, get_guage_origin
+from pyscf.prop.dip_moment.mcpdft import get_guage_origin
 from pyscf.fci import direct_spin1
+from pyscf.grad.mspdft import _unpack_state
 
-def _unpack_state (state):
-    if hasattr (state, '__len__'): return state[0], state[1]
-    return state, state
+print('Printing LdotJnuc here -  Helen: ', LdotJnuc)
 
-#mc or self in the arguments?
-#def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci_bra=None, ci_ket=None, origin='Coord_Center'):
 def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci_bra=None, ci_ket=None, origin='Coord_Center'):
     if mo_coeff is None: mo_coeff = mc.mo_coeff
     if state is None: state   = self.state
@@ -23,14 +20,13 @@ def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci
     if ci_ket is None: ci_ket = ci[:,ket]
     if mc.frozen is not None:
         raise NotImplementedError
-
+    
     mol = mc.mol
     ncore = mc.ncore
     ncas = mc.ncas
     nocc = ncore + ncas
     nelecas = mc.nelecas
 
-    mo_core = mo_coeff[:,:ncore]
     mo_cas = mo_coeff[:,ncore:nocc]
 
     casdm1 = direct_spin1.trans_rdm12 (ci[state[0]], ci[state[1]], mc.ncas, mc.nelecas)[0]
@@ -76,3 +72,5 @@ class TransitionDipole (lpdft.ElectricDipole):
 
         elec_term = lpdft_trans_HellmanFeynman_dipole (fcasscf, mo_coeff=mo, state=state, ci_bra = ci[state[0]], ci_ket = ci[state[1]], origin=origin)
         return elec_term
+
+

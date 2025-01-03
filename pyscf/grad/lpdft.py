@@ -521,6 +521,11 @@ class Gradients(sacasscf.Gradients):
         log.debug("g_all explicit ci:\n{}".format(g_all_explicit[self.ngorb :]))
         log.debug("g_all implicit orb:\n{}".format(g_all_implicit[: self.ngorb]))
         log.debug("g_all implicit ci:\n{}".format(g_all_implicit[self.ngorb :]))
+    
+        print('Printing g_all explicit orb here: ', g_all_explicit[: self.ngorb])
+        print('Printing g_all explicit ci here: ', g_all_explicit[self.ngorb :])
+        print('Printing g_all implicit orb', g_all_implicit[: self.ngorb])
+        print('Printing g_all implicit ci', g_all_implicit[self.ngorb :])
 
         # Need to remove the SA-SA rotations from g_all_implicit CI contributions
         spin_states = np.asarray(self.spin_states)
@@ -549,15 +554,19 @@ class Gradients(sacasscf.Gradients):
                         na * nb
                         for na, nb in zip(self.na_states[:state], self.nb_states[:state])
                     ]
-                )
+                    )
                 if root > 0
                 else 0
-            )
+                    )
             g_all[self.ngorb :][offs:][:ndet] += g_all_explicit[self.ngorb :]
 
         gorb, gci = self.unpack_uniq_var(g_all)
         log.debug("g_all orb:\n{}".format(gorb))
         log.debug("g_all ci:\n{}".format([c.ravel() for c in gci]))
+        
+        print('Printing g_all here: ', g_all)
+        print('Printing gorb here: ', gorb)
+        print('Printing gci here: ', gci)
 
         return g_all
 
@@ -650,6 +659,8 @@ class Gradients(sacasscf.Gradients):
 
             casdm1s = direct_spin1.trans_rdm1s(ci_bra, ci_ket, ncas, nelecas)
             casdm2 = direct_spin1.trans_rdm12(ci_bra, ci_ket, ncas, nelecas)[1]
+            casdm1s = [0.5 * (casdm1s[0] + casdm1s[0].T), 0.5 * (casdm1s[1] + casdm1s[1].T)]
+            casdm2 = 0.5 * (casdm2 + casdm2.transpose(1,0,3,2))
             dm1s_cas = np.dot (casdm1s, moH_cas)
             dm1s = np.dot(mo_cas, dm1s_cas).transpose(1,0,2)
 

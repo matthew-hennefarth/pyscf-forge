@@ -9,7 +9,6 @@ from pyscf.prop.dip_moment.mcpdft import get_guage_origin
 from pyscf.fci import direct_spin1
 from pyscf.grad.mspdft import _unpack_state
 
-print('Printing LdotJnuc here -  Helen: ', LdotJnuc)
 
 def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci_bra=None, ci_ket=None, origin='Coord_Center'):
     if mo_coeff is None: mo_coeff = mc.mo_coeff
@@ -23,11 +22,14 @@ def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci
     
     mol = mc.mol
     ncore = mc.ncore
+    print('Printing ncore here - Helen: ', ncore)
     ncas = mc.ncas
     nocc = ncore + ncas
+    nocc = ncas
     nelecas = mc.nelecas
 
     mo_cas = mo_coeff[:,ncore:nocc]
+    mo_cas = mo_coeff[:, :nocc]
 
     casdm1 = direct_spin1.trans_rdm12 (ci[state[0]], ci[state[1]], mc.ncas, mc.nelecas)[0]
     casdm1 = 0.5 * (np.array(casdm1) + np.array(casdm1).T)
@@ -72,5 +74,4 @@ class TransitionDipole (lpdft.ElectricDipole):
 
         elec_term = lpdft_trans_HellmanFeynman_dipole (fcasscf, mo_coeff=mo, state=state, ci_bra = ci[state[0]], ci_ket = ci[state[1]], origin=origin)
         return elec_term
-
 

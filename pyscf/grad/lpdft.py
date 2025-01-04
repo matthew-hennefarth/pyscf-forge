@@ -564,10 +564,6 @@ class Gradients(sacasscf.Gradients):
         log.debug("g_all orb:\n{}".format(gorb))
         log.debug("g_all ci:\n{}".format([c.ravel() for c in gci]))
         
-        print('Printing g_all here: ', g_all)
-        print('Printing gorb here: ', gorb)
-        print('Printing gci here: ', gci)
-
         return g_all
 
     def get_ham_response(

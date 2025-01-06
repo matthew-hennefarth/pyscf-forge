@@ -15,8 +15,9 @@
 #
 # Author: Matthew Hennefarth <mhennefarth@uchicago.com>
 
+import tempfile, h5py
 import numpy as np
-from pyscf import gto, scf, fci
+from pyscf import gto, scf, dft, fci, lib
 from pyscf import mcpdft
 import unittest
 
@@ -56,6 +57,8 @@ def get_water(functional='tpbe', basis='6-31g'):
     solver2.spin = 2
 
     mc = mcpdft.CASSCF(mf, functional, 4, 4, grids_level=1)
+    mc.chkfile = tempfile.NamedTemporaryFile().name 
+    # mc.chk_ci = True
     mc = mc.multi_state_mix([solver1, solver2], weights, "lin")
     mc.run()
     return mc
@@ -79,13 +82,17 @@ def get_water_triplet(functional='tPBE', basis="6-31G"):
     solver2.nroots = 2
 
     mc = mcpdft.CASSCF(mf, functional, 4, 4, grids_level=1)
+    mc.chkfile = tempfile.NamedTemporaryFile().name 
+    # mc.chk_ci = True
     mc = mc.multi_state_mix([solver1, solver2], weights, "lin")
     mc.run()
     return mc
 
 
 def setUpModule():
-    global lih, lih_4, lih_tpbe, lih_tpbe0, water, t_water
+    global lih, lih_4, lih_tpbe, lih_tpbe0, water, t_water, original_grids
+    original_grids = dft.radi.ATOM_SPECIFIC_TREUTLER_GRIDS
+    dft.radi.ATOM_SPECIFIC_TREUTLER_GRIDS = False
     lih = get_lih(1.5)
     lih_4 = get_lih(1.5, n_states=4, basis="6-31G")
     lih_tpbe = get_lih(1.5, functional="tPBE")
@@ -94,14 +101,15 @@ def setUpModule():
     t_water = get_water_triplet()
 
 def tearDownModule():
-    global lih, lih_4, lih_tpbe0, lih_tpbe, t_water, water
+    global lih, lih_4, lih_tpbe0, lih_tpbe, t_water, water, original_grids
+    dft.radi.ATOM_SPECIFIC_TREUTLER_GRIDS = original_grids
     lih.mol.stdout.close()
     lih_4.mol.stdout.close()
     lih_tpbe0.mol.stdout.close()
     lih_tpbe.mol.stdout.close()
     water.mol.stdout.close()
     t_water.mol.stdout.close()
-    del lih, lih_4, lih_tpbe0, lih_tpbe, t_water, water
+    del lih, lih_4, lih_tpbe0, lih_tpbe, t_water, water, original_grids
 
 class KnownValues(unittest.TestCase):
 
@@ -209,6 +217,21 @@ class KnownValues(unittest.TestCase):
         self.assertListAlmostEqual(e_states, E_STATES_EXPECTED, 6)
         self.assertListAlmostEqual(hdiag, HDIAG_EXPECTED, 6)
         self.assertAlmostEqual(hcoup, HCOUP_EXPECTED, 6)
+
+    def test_chkfile(self):
+        for mc, case in zip([water, t_water], ["SA", "SA Mix"]):
+            print(mc.chkfile)
+            with self.subTest(case=case):
+                self.assertTrue(h5py.is_hdf5(mc.chkfile))
+                self.assertEqual(lib.fp(mc.mo_coeff), lib.fp(lib.chkfile.load(mc.chkfile, "pdft/mo_coeff")))
+                self.assertEqual(mc.e_tot, lib.chkfile.load(mc.chkfile, "pdft/e_tot"))
+                self.assertEqual(lib.fp(mc.e_mcscf), lib.fp(lib.chkfile.load(mc.chkfile, "pdft/e_mcscf")))
+                self.assertEqual(lib.fp(mc.e_states), lib.fp(lib.chkfile.load(mc.chkfile, "pdft/e_states")))        
+
+                # Requires PySCF version > 2.6.2 which is not available on pip currently
+                # for state, (c_ref, c) in enumerate(zip(mc.ci, lib.chkfile.load(mc.chkfile, "pdft/ci"))):
+                    # with self.subTest(state=state):
+                        # self.assertEqual(lib.fp(c_ref), lib.fp(c))
 
 if __name__ == "__main__":
     print("Full Tests for Linearized-PDFT")

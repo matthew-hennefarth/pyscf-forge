@@ -12,27 +12,24 @@ from pyscf.grad.mspdft import _unpack_state
 
 def lpdft_trans_HellmanFeynman_dipole(mc, mo_coeff=None, state=None, ci=None, ci_bra=None, ci_ket=None, origin='Coord_Center'):
     if mo_coeff is None: mo_coeff = mc.mo_coeff
-    if state is None: state   = self.state
+    if state is None: state   = mc.state
     if ci is None: ci = mc.ci
     ket, bra = _unpack_state (state)
-    if ci_bra is None: ci_bra = ci[:,bra]
-    if ci_ket is None: ci_ket = ci[:,ket]
+    if ci_bra is None: ci_bra = ci[bra]
+    if ci_ket is None: ci_ket = ci[ket]
     if mc.frozen is not None:
         raise NotImplementedError
     
     mol = mc.mol
     ncore = mc.ncore
-    print('Printing ncore here - Helen: ', ncore)
     ncas = mc.ncas
     nocc = ncore + ncas
     nocc = ncas
-    nelecas = mc.nelecas
 
     mo_cas = mo_coeff[:,ncore:nocc]
     mo_cas = mo_coeff[:, :nocc]
 
-    casdm1 = direct_spin1.trans_rdm12 (ci[state[0]], ci[state[1]], mc.ncas, mc.nelecas)[0]
-    casdm1 = 0.5 * (np.array(casdm1) + np.array(casdm1).T)
+    casdm1 = direct_spin1.trans_rdm12 (ci_bra, ci_ket, mc.ncas, mc.nelecas)[0]
 
     tdm = reduce(np.dot, (mo_cas, casdm1, mo_cas.T))
 

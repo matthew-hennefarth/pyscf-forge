@@ -485,7 +485,6 @@ class Gradients(sacasscf.Gradients):
         fcasscf_sa = self.make_fcasscf_sa()
 
         fcasscf.mo_coeff = mo
-        #fcasscf.ci = ci[state]
 
         fcasscf.get_hcore = self.base.get_lpdft_hcore
         fcasscf_sa.get_hcore = lambda: feff1
@@ -506,7 +505,7 @@ class Gradients(sacasscf.Gradients):
             vnocore = self.base.veff2.vhf_c.copy()
             vnocore[:,:ncore] = -moH @ fcasscf.get_hcore() @ mo[:,:ncore]
             with lib.temporary_env(self.base.veff2, vhf_c=vnocore):
-                g_all_explicit[:self.ngorb] = 2 * mc1step.gen_g_hop (fcasscf, mo, 1, casdm1, casdm2, self.base.veff2)[0]
+                g_all_explicit[:self.ngorb] = 2*mc1step.gen_g_hop (fcasscf, mo, 1, casdm1, casdm2, self.base.veff2)[0]
         
         else:
             g_all_explicit = newton_casscf.gen_g_hop(
@@ -521,11 +520,6 @@ class Gradients(sacasscf.Gradients):
         log.debug("g_all explicit ci:\n{}".format(g_all_explicit[self.ngorb :]))
         log.debug("g_all implicit orb:\n{}".format(g_all_implicit[: self.ngorb]))
         log.debug("g_all implicit ci:\n{}".format(g_all_implicit[self.ngorb :]))
-    
-        print('Printing g_all explicit orb here: ', g_all_explicit[: self.ngorb])
-        print('Printing g_all explicit ci here: ', g_all_explicit[self.ngorb :])
-        print('Printing g_all implicit orb', g_all_implicit[: self.ngorb])
-        print('Printing g_all implicit ci', g_all_implicit[self.ngorb :])
 
         # Need to remove the SA-SA rotations from g_all_implicit CI contributions
         spin_states = np.asarray(self.spin_states)
@@ -650,13 +644,11 @@ class Gradients(sacasscf.Gradients):
             ci_bra = ci[state[0]]
             ci_ket = ci[state[1]]
             
-            mo_cas = mo[:,ncore:][:,:ncas]
+            mo_cas = mo[:,ncore:ncore+ncas]
             moH_cas = mo_cas.conj ().T
 
             casdm1s = direct_spin1.trans_rdm1s(ci_bra, ci_ket, ncas, nelecas)
             casdm2 = direct_spin1.trans_rdm12(ci_bra, ci_ket, ncas, nelecas)[1]
-            casdm1s = [0.5 * (casdm1s[0] + casdm1s[0].T), 0.5 * (casdm1s[1] + casdm1s[1].T)]
-            casdm2 = 0.5 * (casdm2 + casdm2.transpose(1,0,3,2))
             dm1s_cas = np.dot (casdm1s, moH_cas)
             dm1s = np.dot(mo_cas, dm1s_cas).transpose(1,0,2)
 
@@ -668,9 +660,6 @@ class Gradients(sacasscf.Gradients):
             dm1s = _dms.casdm1s_to_dm1s(self.base, casdm1s, mo_coeff=mo)
 
         cascm2 = _dms.dm2_cumulant(casdm2, casdm1s)
-
-        
-
 
         return self.base.get_pdft_feff(
             mo=mo,

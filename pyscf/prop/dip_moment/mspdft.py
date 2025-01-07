@@ -134,9 +134,8 @@ class ElectricDipole (mspdft.Gradients):
         total = nucl_term + elec_term
         return total
 
-    def get_LdotJnuc (self, Lvec, atmlst=None, verbose=None, mo=None,
+    def get_LdotJnuc (self, Lvec, verbose=None, mo=None,
             ci=None, origin='Coord_Center', **kwargs):
-        if atmlst is None: atmlst = self.atmlst
         if verbose is None: verbose = self.verbose
         if mo is None: mo = self.base.mo_coeff
         if ci is None: ci = self.base.ci

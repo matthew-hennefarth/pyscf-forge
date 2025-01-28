@@ -114,13 +114,11 @@ class KnownValues(unittest.TestCase):
         for mol, mf in zip(('H2', 'LiH'), (h2, lih)):
             for state, nel in zip(('Singlet', 'Triplet'), (2, (2, 0))):
                 for fnal in ('tLDA,VWN3', 'ftLDA,VWN3', 'tPBE', 'ftPBE', 'tM06L'):
-                    if fnal != "tM06L":
+                    if fnal != 'tM06L':
                         continue
                     mc = mcpdft.CASSCF(mf, fnal, 2, nel, grids_level=1).run()
-                    print(f"TESTING {mol}, {state}, {fnal}")
                     with self.subTest(mol=mol, state=state, fnal=fnal):
                         case(self, mc)
-                    print(f"PASSED")
 
     def test_veff_ao2mo(self):
         for mol, mf in zip(('H2', 'LiH'), (h2, lih)):

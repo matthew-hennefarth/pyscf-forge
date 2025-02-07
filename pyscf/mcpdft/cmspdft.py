@@ -15,12 +15,7 @@
 #
 import numpy as np
 from itertools import product
-from scipy import linalg
 from pyscf import gto, dft, ao2mo, fci, mcscf, lib
-from pyscf.lib import logger, temporary_env
-from pyscf.mcscf.addons import StateAverageMCSCFSolver, state_average_mix, state_average_mix_, state_average
-from pyscf.fci import direct_spin1
-from pyscf import mcpdft
 
 def coulomb_tensor (mc, mo_coeff=None, ci=None, h2eff=None, eris=None):
     '''Compute w_IJKL = (tu|vx) D^IJ_tu D^KL_vx
@@ -109,7 +104,7 @@ def _e_coul (w_IJKL, nroots):
 
     Qaa = np.trace (w_IJJJ) / 2.0
 
-    tril_mask = np.zeros ([nroots,nroots], dtype=np.bool_)
+    tril_mask = lib.zeros([nroots,nroots], dtype=np.bool_)
     tril_mask[np.tril_indices (nroots,k=-1)] = True
     dQaa = 2*(w_IJJJ.T-w_IJJJ)[tril_mask]
     # My sign convention is row idx = source state; col idx = dest
@@ -144,7 +139,7 @@ def e_coul_o0 (mc,ci):
     mo_cas = mc.mo_coeff[:,ncore:nocc]
     ci_array = np.array(ci)
     casdm1 = mc.fcisolver.states_make_rdm1 (ci,ncas,mc.nelecas)
-    dm1 = np.dot(casdm1,mo_cas.T)
+    dm1 = np.dot(casdm1, mo_cas.T)
     dm1 = np.dot(mo_cas,dm1).transpose(1,0,2)
     j = mc._scf.get_j (dm=dm1)
     e_coul = (j*dm1).sum((1,2)) / 2
@@ -154,7 +149,7 @@ def e_coul_o0 (mc,ci):
     trans12_tdm1_array = np.array(trans12_tdm1)
     tdm1 = np.dot(trans12_tdm1_array,mo_cas.T)
     tdm1 = np.dot(mo_cas,tdm1).transpose(1,0,2)
-    rowscol2ind = np.zeros ((nroots, nroots), dtype=int)
+    rowscol2ind = lib.zeros((nroots, nroots), dtype=np.int32)
     rowscol2ind[(rows,col)] = list (range (pairs))
     rowscol2ind += rowscol2ind.T
     rowscol2ind[np.diag_indices(nroots)] = -1
@@ -178,14 +173,14 @@ def e_coul_o0 (mc,ci):
     dg = mc._scf.get_j (dm=tdm1)
     grad1 = (dg*dm1[rows]).sum((1,2))
     grad2 = (dg*dm1[col]).sum((1,2))
-    e_grad = np.zeros(pairs)
+    e_grad = lib.zeros(pairs, dtype=grad1.dtype)
     e_grad = 2*(grad1 - grad2)
 
-    e_hess = np.zeros((pairs,pairs))
-    for (i, (k,l)), (j, (m,n)) in product (enumerate (zip (rows, col)),
+    e_hess = lib.zeros((pairs,pairs), dtype=tdm1.dtype)
+    for (i, (k,l)), (j, (m,n)) in product(enumerate(zip(rows, col)),
             repeat=2):
         e_hess[i,j] = (v_klmn(k,l,m,n,dm1,tdm1)+v_klmn(l,k,n,m,dm1,tdm1)
                       -v_klmn(k,l,n,m,dm1,tdm1)-v_klmn(l,k,m,n,dm1,tdm1))
 
-    return sum (e_coul), e_grad, e_hess
+    return sum(e_coul), e_grad, e_hess
 

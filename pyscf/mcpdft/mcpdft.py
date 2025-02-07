@@ -348,7 +348,7 @@ def _get_e_decomp(mc, mo_coeff=None, ci=None, ot=None, state=0, verbose=None):
     h2 = ao2mo.restore(1, mc.get_h2eff(), ncas)
     j = mc._scf.get_j(dm=dm1)
     e_1e = np.dot(h.ravel(), dm1.ravel())
-    e_coul = np.dot(j.ravel(), dm1.ravel()) / 2
+    e_coul = 0.5 * np.dot(j.ravel(), dm1.ravel())
 
     e_mcscf = h0 + np.dot(h1.ravel(), casdm1.ravel()) + (
             np.dot(h2.ravel(), casdm2.ravel()) * 0.5)

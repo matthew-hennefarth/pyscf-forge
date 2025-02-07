@@ -16,6 +16,7 @@
 # Author: Matthew Hennefarth <mhennefarth@uchicago.com>
 
 import numpy as np
+from pyscf import lib
 from pyscf.lib import logger, tag_array, current_memory
 from pyscf.dft.gen_grid import BLKSIZE
 from pyscf.mcpdft.otpd import get_ontop_pair_density
@@ -91,7 +92,7 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
     if abs(hyb_x) > 1e-11 or abs(hyb_c) > 1e-11:
         raise NotImplementedError("effective potential for hybrid functionals")
 
-    feff1 = np.zeros((nao, nao), dtype=dm1s.dtype)
+    feff1 = lib.zeros((nao, nao), dtype=dm1s.dtype)
     feff2 = _ERIS(ot.mol, mo_coeff, ncore, ncas, paaa_only=paaa_only,
                   aaaa_only=aaaa_only, jk_pc=jk_pc, verbose=ot.verbose,
                   stdout=ot.stdout)
@@ -99,7 +100,7 @@ def kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_coeff, ncore, ncas, max_memory
     t0 = (logger.process_clock(), logger.perf_counter())
 
     # Density matrices
-    dm_core = mo_core @ mo_core.T
+    dm_core = lib.dot(mo_core, lib.transpose(mo_core))
     dm_cas = dm1s - dm_core[None, :, :]
     dm_core *= 2
 
@@ -195,7 +196,7 @@ def lazy_kernel(ot, dm1s, cascm2, c_dm1s, c_cascm2, mo_cas, hermi=1, max_memory=
     nao = mo_cas.shape[0]
 
     feff1 = np.zeros_like(dm1s[0])
-    feff2 = np.zeros((nao, nao, nao, nao), dtype=feff1.dtype)
+    feff2 = lib.zeros((nao, nao, nao, nao), dtype=feff1.dtype)
 
     t0 = (logger.process_clock(), logger.perf_counter())
 

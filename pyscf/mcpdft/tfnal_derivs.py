@@ -15,16 +15,17 @@
 #
 import numpy as np
 from scipy import linalg
+from pyscf import lib
 from pyscf.lib import logger
 
 
 def _reshape_vxc_sigma(vxc0, dens_deriv):
     # d/drho, d/dsigma -> d/drho, d/drho'
     vrho = vxc0[0]
-    vxc1 = list(vrho.T)
+    vxc1 = list(lib.transpos(vrho))
     if dens_deriv:
         vsigma = vxc0[1]
-        vxc1 = vxc1 + list(vsigma.T)
+        vxc1 = vxc1 + list(lib.transpose(vsigma))
     else:
         vxc1 = [vxc1[0][None, :], vxc1[1][None, :]]
     return vxc1
@@ -33,10 +34,10 @@ def _reshape_vxc_sigma(vxc0, dens_deriv):
 def _unpack_vxc_sigma(vxc0, rho, dens_deriv):
     # d/drho, d/dsigma -> d/drho, d/drho'
     vrho = vxc0[0]
-    vxc1 = list(vrho.T)
+    vxc1 = list(lib.transpose(vrho))
     if dens_deriv:
         vsigma = vxc0[1]
-        vxc1 = vxc1 + list(vsigma.T)
+        vxc1 = vxc1 + list(lib.transpose(vsigma))
         vxc1 = _unpack_sigma_vector(vxc1, rho[0][1:4], rho[1][1:4])
     else:
         vxc1 = [vxc1[0][None, :], vxc1[1][None, :]]
@@ -46,11 +47,11 @@ def _unpack_vxc_sigma(vxc0, rho, dens_deriv):
 def _pack_fxc_ltri(fxc0, dens_deriv):
     # d2/drho2, d2/drhodsigma, d2/dsigma2
     # -> lower-triangular Hessian matrix
-    frho = fxc0[0].T
+    frho = lib.transpose(fxc0[0])
     fxc1 = [frho[0], ]
     fxc1 += [frho[1], frho[2], ]
     if dens_deriv:
-        frhosigma, fsigma = fxc0[1].T, fxc0[2].T
+        frhosigma, fsigma = lib.transpose(fxc0[1]), lib.transpose(fxc0[2])
         fxc1 += [frhosigma[0], frhosigma[3], fsigma[0], ]
         fxc1 += [frhosigma[1], frhosigma[4], fsigma[1], fsigma[3], ]
         fxc1 += [frhosigma[2], frhosigma[5], fsigma[2], fsigma[4], fsigma[5]]
@@ -145,11 +146,12 @@ def eval_ot(otfnal, rho, Pi, dderiv=1, weights=None, _unpack_vot=True):
     vot = fot = None
     if dderiv > 0:
         # vrho, vsigma = xc_grid[1][:2]
-        vxc = list(xc_grid[1][0].T)
-        if otfnal.dens_deriv: vxc = vxc + list(xc_grid[1][1].T)
+        vxc = list(lib.transpose(xc_grid[1][0]))
+        if otfnal.dens_deriv:
+            vxc = vxc + list(lib.transpose(xc_grid[1][1]))
         vot = otfnal.jT_op(vxc, rho, Pi)
-        if _unpack_vot: vot = _unpack_sigma_vector(vot,
-                                                   deriv1=rho_deriv, deriv2=Pi_deriv)
+        if _unpack_vot:
+            vot = _unpack_sigma_vector(vot, deriv1=rho_deriv, deriv2=Pi_deriv)
     if dderiv > 1:
         # I should implement this entirely in terms of the gradient norm, since
         # that reduces the number of grid columns from 25 to 9 for t-GGA and
@@ -297,8 +299,8 @@ def contract_fot(otfnal, fot, rho0, Pi0, rho1, Pi1, unpack=True,
     if Pi1.ndim == 1: Pi1 = Pi1[None, :]
 
     ngrids = fot[0].shape[-1]
-    vrho1 = np.zeros(ngrids, fot[0].dtype)
-    vPi1 = np.zeros(ngrids, fot[2].dtype)
+    vrho1 = lib.zeros(ngrids, dtype=fot[0].dtype)
+    vPi1 = lib.zeros(ngrids, dtype=fot[2].dtype)
     vrho1, vPi1 = np.zeros_like(rho1), np.zeros_like(Pi1)
 
     # TODO: dspmv implementation
@@ -355,9 +357,9 @@ def _jT_f_j(frr, jT_op, *args, **kwargs):
 
     # build square-matrix index array to address packed matrix frr w/o copying
     ltri_ix = np.tril_indices(nr)
-    idx_arr = np.zeros((nr, nr), dtype=np.int32)
+    idx_arr = lib.zeros((nr, nr), dtype=np.int32)
     idx_arr[ltri_ix] = range(nel)
-    idx_arr += idx_arr.T
+    lib.transpose_sum(idx_arr, inplace=True)
     diag_ix = np.diag_indices(nr)
     idx_arr[diag_ix] = idx_arr[diag_ix] // 2
 
@@ -407,7 +409,7 @@ def _gentLDA_jT_op(x, rho, Pi, R, zeta):
     # Charge sector has no explicit rho denominator
     # and so does not require indexing to avoid
     # division by zero
-    jTx = np.zeros((2, ngrid), dtype=x[0].dtype)
+    jTx = lib.zeros((2, ngrid), dtype=x[0].dtype)
     jTx[0] = xc + xm * (zeta[0] - (2 * R * zeta[1]))
 
     # Spin sector has a rho denominator
@@ -427,7 +429,7 @@ def _tGGA_jT_op(x, rho, Pi, R, zeta):
     #     d(rho,Pi,|rho'|) [real densities and gradients]
     # by a vector x_(|trho*'|^2) in the context of tGGAs
     ngrid = rho.shape[-1]
-    jTx = np.zeros((3, ngrid), dtype=x[0].dtype)
+    jTx = lib.zeros((3, ngrid), dtype=x[0].dtype)
     if R.ndim > 1: R = R[0]
 
     # ab -> cs coordinate transformation
@@ -519,7 +521,7 @@ def _ftGGA_jT_op(x, rho, Pi, R, zeta):
     # with a vector x_(|trho*'|^2), which is present in ftGGAs and
     # missing in tGGAs
     ngrid = rho.shape[-1]
-    jTx = np.zeros((5, ngrid), dtype=x[0].dtype)
+    jTx = lib.zeros((5, ngrid), dtype=x[0].dtype)
 
     # ab -> cs step
     jTx[2] = (x[2] + x[4] + x[3]) / 4.0
@@ -560,7 +562,7 @@ def _gentLDA_d_jT_op(x, rho, Pi, R, zeta):
     Pi = Pi[0]
     R = R[0]
     ngrid = rho.shape[-1]
-    f = np.zeros((3, ngrid), dtype=x[0].dtype)
+    f = lib.zeros((3, ngrid), dtype=x[0].dtype)
 
     # ab -> cs
     xm = (x[0] - x[1]) / 2.0
@@ -599,7 +601,7 @@ def _tGGA_d_jT_op(x, rho, Pi, R, zeta):
     # Generates contributions to the first five elements
     # of the lower-triangular packed Hessian
     ngrid = rho.shape[-1]
-    f = np.zeros((5, ngrid), dtype=x[0].dtype)
+    f = lib.zeros((5, ngrid), dtype=x[0].dtype)
 
     # Indexing
     idx = rho[0] > 1e-15
@@ -655,7 +657,7 @@ def _ftGGA_d_jT_op_m2z(v, rho, zeta, srz, szz):
     # 7  : srz, z
     # 10 : szz, r
     ngrids = v.shape[1]
-    f = np.zeros((15, ngrids), dtype=v.dtype)
+    f = lib.zeros((15, ngrids), dtype=v.dtype)
     f[0] = 2 * v[4] * szz
     f[1] = 2 * v[4] * srz
     f[6] = v[3] + 2 * v[4] * zeta[0]
@@ -675,7 +677,7 @@ def _ftGGA_d_jT_op_z2R(v, zeta, srP, sPP):
     # 7  : srP, P
     # 11 : sPP, P
     ngrids = v.shape[1]
-    f = np.zeros((15, ngrids), dtype=v.dtype)
+    f = lib.zeros((15, ngrids), dtype=v.dtype)
     f[2] = 2 * v[4] * sPP * (zeta[3] * zeta[1] + zeta[2] * zeta[2])
     f[2] += v[1] * zeta[2] + v[3] * srP * zeta[3]
     f[7] = v[3] * zeta[2]
@@ -693,8 +695,8 @@ def _ftGGA_d_jT_op_R2Pi(v, rho, Pi, srr, srP, sPP):
     # d[n] = ---------
     #          dr^n
     ngrids = v.shape[-1]
-    f = np.zeros((15, ngrids), dtype=v.dtype)
-    d = np.zeros((4, ngrids), dtype=v.dtype)
+    f = lib.zeros((15, ngrids), dtype=v.dtype)
+    d = lib.zeros((4, ngrids), dtype=v.dtype)
     idx = np.abs(rho) > 1e-15
     d[0, idx] = 4 / rho[idx] / rho[idx]
     d[1, idx] = -2 * d[0, idx] / rho[idx]

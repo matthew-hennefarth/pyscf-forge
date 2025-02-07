@@ -44,7 +44,7 @@ class _ERIS:
         self.nao, self.nmo = mo_coeff.shape
         self.ncore = ncore
         self.ncas = ncas
-        self.vhf_c = np.zeros((self.nmo, self.nmo), dtype=mo_coeff.dtype)
+        self.vhf_c = lib.zeros((self.nmo, self.nmo), dtype=mo_coeff.dtype)
         self.method = method
         self.paaa_only = paaa_only
         self.aaaa_only = aaaa_only
@@ -52,9 +52,9 @@ class _ERIS:
         self.verbose = verbose
         self.stdout = stdout
         if method == 'incore':
-            self.papa = np.zeros((self.nmo, ncas, self.nmo, ncas),
+            self.papa = lib.zeros((self.nmo, ncas, self.nmo, ncas),
                                  dtype=mo_coeff.dtype)
-            self.j_pc = np.zeros((self.nmo, ncore), dtype=mo_coeff.dtype)
+            self.j_pc = lib.zeros((self.nmo, ncore), dtype=mo_coeff.dtype)
         else:
             raise NotImplementedError("method={} for pdft_eff2".format(
                 self.method))
@@ -77,11 +77,22 @@ class _ERIS:
         nocc = ncore + ncas
 
         vrho_c = _contract_eff_rho(eff_Pi, rho_c)
-        self.vhf_c += mo_coeff.conjugate().T @ ot.get_eff_1body(ao,
-                                                             weight, vrho_c, non0tab=non0tab, shls_slice=shls_slice,
-                                                             ao_loc=ao_loc,
-                                                             hermi=1) @ mo_coeff
-        self.energy_core = np.trace(self.vhf_c[:ncore, :ncore]) #/ 2
+        self.vhf_c += lib.dot(
+            lib.transpose(mo_coeff.conj()),
+            lib.dot(
+                ot.get_eff_1body(
+                    ao,
+                    weight,
+                    vrho_c,
+                    non0tab=non0tab,
+                    shls_slice=shls_slice,
+                    ao_loc=ao_loc,
+                    hermi=1,
+                ),
+                mo_coeff,
+            ),
+        )
+        self.energy_core = np.trace(self.vhf_c[:ncore, :ncore])  # / 2
         if self.paaa_only:
             # 1/2 v_aiuv D_ii D_uv = v^ai_uv D_uv -> F_ai, F_ia
             # needs to be in here since it would otherwise be calculated using
@@ -89,9 +100,17 @@ class _ERIS:
             # elements in the active space and core-core sector are ignored
             # below.
             eff_rho_a = _contract_eff_rho(eff_Pi, rho_a)
-            vhf_a = get_eff_1body(ot, ao, weight, eff_rho_a, non0tab=non0tab,
-                                  shls_slice=shls_slice, ao_loc=ao_loc, hermi=1)
-            vhf_a = mo_coeff.conjugate().T @ vhf_a @ mo_coeff
+            vhf_a = get_eff_1body(
+                ot,
+                ao,
+                weight,
+                eff_rho_a,
+                non0tab=non0tab,
+                shls_slice=shls_slice,
+                ao_loc=ao_loc,
+                hermi=1,
+            )
+            vhf_a = lib.dot(lib.transpose(mo_coeff.conj()), lib.dot(vhf_a, mo_coeff))
             vhf_a[ncore:nocc, :] = vhf_a[:, ncore:nocc] = 0.0
             self.vhf_c += vhf_a
 
@@ -328,7 +347,7 @@ def _dot_ao_mo(mol, ao, mo, non0tab=None, shls_slice=None, ao_loc=None,
         ao = lib.transpose(ao)
     if not mo.flags.f_contiguous:
         mo = lib.transpose(mo)
-    if ao.dtype == mo.dtype == np.double:
+    if ao.dtype == mo.dtype == np.float64:
         fn = libpdft.VOTdot_ao_mo
     else:
         raise NotImplementedError("Complex-orbital PDFT")

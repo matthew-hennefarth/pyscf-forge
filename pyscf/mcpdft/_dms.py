@@ -184,8 +184,8 @@ def casdm1s_to_dm1s (mc, casdm1s, mo_coeff=None, ncore=None, ncas=None):
     if ncas is None: ncas=mc.ncas
     mo_core = mo_coeff[:,:ncore]
     mo_cas = mo_coeff[:,ncore:][:,:ncas]
-    moH_core = mo_core.conj ().T
-    moH_cas = mo_cas.conj ().T
+    moH_core = lib.transpose(mo_core.conj())
+    moH_cas = lib.transpose(mo_cas.conj())
 
     casdm1s = np.asarray (casdm1s)
     dm1s_cas = np.dot (casdm1s, moH_cas)

@@ -19,6 +19,7 @@ from functools import reduce
 import numpy as np
 from scipy import linalg
 
+from pyscf import lib
 from pyscf.mcpdft import _dms
 from pyscf.fci import direct_spin1
 
@@ -59,10 +60,10 @@ def fock_h1e_for_cas(mc, sa_casdm1, mo_coeff=None, ncas=None, ncore=None):
     energy_core = mc._scf.energy_nuc()
 
     if mo_core.size != 0:
-        core_dm = np.dot(mo_core, mo_core.conj().T) * 2
+        core_dm = 2.0*lib.dot(mo_core, lib.transpose(mo_core.conj()))
         energy_core += np.tensordot(core_dm, hcore_eff).real
 
-    h1eff = reduce(np.dot, (mo_cas.conj().T, hcore_eff, mo_cas))
+    h1eff = reduce(lib.dot, (lib.transpose(mo_cas.conj()), hcore_eff, mo_cas))
 
     return h1eff, energy_core
 
@@ -137,7 +138,7 @@ def safock_energy(mc, **kwargs):
             Should be the Lagrange multiplier terms. Currently returning None
             since we cannot do gradients yet.
     '''
-    dsa_fock = np.zeros(
+    dsa_fock = lib.zeros(
         int(mc.fcisolver.nroots * (mc.fcisolver.nroots - 1) / 2))
     # TODO fix, this redundancy...no need to compute fock matrix twice..
     e_states, _ = diagonalize_safock(mc)
@@ -172,7 +173,7 @@ def solve_safock(mc, mo_coeff=None, ci=None, ):
 
     e_states, si_pdft = diagonalize_safock(mc, mo_coeff=mo_coeff, ci=ci)
 
-    ci = np.tensordot(si_pdft.T, ci, 1)
+    ci = np.tensordot(lib.transpose(si_pdft), ci, 1)
     conv = True
 
     return conv, ci

@@ -135,8 +135,8 @@ def si_newton (mc, ci=None, objfn=None, max_cyc=None, conv_tol=None,
     log = lib.logger.new_logger (mc, mc.verbose)
     nroots = mc.fcisolver.nroots
     rows,col = np.tril_indices(nroots,k=-1)
-    u = np.eye (nroots)
-    t = np.zeros((nroots,nroots))
+    u = np.eye (nroots, dtype=ci.dtype)
+    t = lib.zeros((nroots,nroots), dtype=ci.dtype)
     conv = False
     hdr = '{} intermediate-state'.format (mc.__class__.__name__)
     f, df, d2f, f_update = objfn (ci=ci)
@@ -145,7 +145,7 @@ def si_newton (mc, ci=None, objfn=None, max_cyc=None, conv_tol=None,
         log.info ("{} objective function value = {}".format (hdr, f))
 
         # Analyze Hessian
-        d2f, evecs = linalg.eigh (d2f)
+        d2f, evecs = linalg.eigh(d2f)
         evecs = np.array(evecs)
         df = np.dot (df, evecs)
         d2f_zero = np.abs (d2f) < sing_tol
@@ -171,8 +171,8 @@ def si_newton (mc, ci=None, objfn=None, max_cyc=None, conv_tol=None,
         log.info ("{} Hessian eigenvalues: {}".format (hdr, d2f))
         log.info ("{} step vector (normal modes): {}".format (hdr, Dt))
         t[:] = 0
-        t[np.tril_indices(t.shape[0], k = -1)] = np.dot (Dt, evecs.T)
-        t = t - t.T
+        t[np.tril_indices(t.shape[0], k = -1)] = np.dot (Dt, lib.transpose(evecs, inplace=True))
+        t = t - lib.transpose(t)
 
         if grad_norm < conv_tol and step_norm < conv_tol and neg_def:
             conv = True
@@ -185,7 +185,7 @@ def si_newton (mc, ci=None, objfn=None, max_cyc=None, conv_tol=None,
         # choose the generator indices~. So I have to transpose here.
         # Flipping the sign of t does the same thing, but don't get
         # confused: this isn't related to the choice of variables!
-        u = np.dot (u, linalg.expm (t).T)
+        u = lib.dot (u, lib.transpose(lib.expm(t), inplace=True))
         f, df, d2f = f_update (u)
 
     try:
@@ -426,7 +426,7 @@ class _MSPDFT (mcpdft.MultiStateMCPDFTSolver):
             ovlp = np.tensordot (np.asarray (ci).conj (), np.asarray (ci0),
                                  axes=((1,2),(1,2)))
             u, svals, vh = linalg.svd (ovlp)
-            ci = self.get_ci_basis (ci=ci, uci=np.dot (u,vh))
+            ci = self.get_ci_basis (ci=ci, uci=lib.dot (u,vh))
         return self._diabatize (self, ci=ci, **kwargs)
 
     def diabatizer (self, mo_coeff=None, ci=None):
@@ -511,7 +511,7 @@ class _MSPDFT (mcpdft.MultiStateMCPDFTSolver):
         nroots = len (self.e_states)
         log.note ('%s adiabatic (final) states:', self.__class__.__name__)
         if getattr (self.fcisolver, 'spin_square', None):
-            ci = np.tensordot (self.si.T, np.asarray (self.ci), axes=1)
+            ci = np.tensordot (lib.transpose(self.si), np.asarray(self.ci), axes=1)
             ss = self.fcisolver.states_spin_square (ci, self.ncas,
                                                     self.nelecas)[0]
             for i in range (nroots):

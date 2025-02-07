@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from pyscf import lib
 from pyscf.mcscf import newton_casscf, casci, mc1step
 from pyscf.grad import rks as rks_grad
 from pyscf.dft import gen_grid
-from pyscf.lib import logger, pack_tril, current_memory, einsum, tag_array
+from pyscf.lib import logger, current_memory
 from pyscf.grad import sacasscf
 from pyscf.mcscf.casci import cas_natorb
 
@@ -46,9 +47,9 @@ def gfock_sym(mc, mo_coeff, casdm1, casdm2, h1e, eris):
     # I also need to generate vhf_c and vhf_a from veff2 rather than the
     # molecule's actual integrals. The true Coulomb repulsion should already be
     # in veff1, but I need to generate the "fake" vj - vk/2 from veff2
-    h1e_mo = mo_coeff.T @ h1e @ mo_coeff + eris.vhf_c
-    aapa = np.zeros((ncas, ncas, nmo, ncas), dtype=h1e_mo.dtype)
-    vhf_a = np.zeros((nmo, nmo), dtype=h1e_mo.dtype)
+    h1e_mo = lib.dot(lib.transpose(mo_coeff), lib.dot(h1e, mo_coeff)) + eris.vhf_c
+    aapa = lib.zeros((ncas, ncas, nmo, ncas), dtype=h1e_mo.dtype)
+    vhf_a = lib.zeros((nmo, nmo), dtype=h1e_mo.dtype)
 
     for i in range(nmo):
         jbuf = eris.ppaa[i]
@@ -57,10 +58,10 @@ def gfock_sym(mc, mo_coeff, casdm1, casdm2, h1e, eris):
 
     vhf_a *= 0.5
     # we have assumed that vj = vk: vj - vk/2 = vj - vj/2 = vj/2
-    gfock = np.zeros((nmo, nmo))
-    gfock[:, :ncore] = (h1e_mo[:, :ncore] + vhf_a[:, :ncore]) * 2
-    gfock[:, ncore:nocc] = h1e_mo[:, ncore:nocc] @ casdm1
-    gfock[:, ncore:nocc] += einsum('uviw,vuwt->it', aapa, casdm2)
+    gfock = lib.zeros((nmo, nmo), dtype=h1e_mo.dtype)
+    gfock[:, :ncore] = 2.0* (h1e_mo[:, :ncore] + vhf_a[:, :ncore])
+    gfock[:, ncore:nocc] = lib.dot(h1e_mo[:, ncore:nocc], casdm1)
+    gfock[:, ncore:nocc] += lib.einsum('uviw,vuwt->it', aapa, casdm2)
 
     return gfock
 
@@ -101,15 +102,15 @@ def pack_casdm2(cascm2, ncas):
     diag_idx = diag_idx * (diag_idx+1) // 2 + diag_idx
 
     casdm2_pack = (cascm2 + cascm2.transpose(0, 1, 3, 2)).reshape(ncas**2, ncas, ncas)
-    casdm2_pack = pack_tril(casdm2_pack).reshape(ncas, ncas, -1)
+    casdm2_pack = lib.pack_tril(casdm2_pack).reshape(ncas, ncas, -1)
     casdm2_pack[:, :, diag_idx] *= 0.5
     return casdm2_pack
 
 def sum_terms(mf_grad, mol, atmlst,dm1, gfock, coul_term, dvxc):
-    de_hcore = np.zeros((len(atmlst), 3))
-    de_renorm = np.zeros((len(atmlst), 3))
-    de_coul = np.zeros((len(atmlst), 3))
-    de_xc = np.zeros((len(atmlst), 3))
+    de_hcore = lib.zeros((len(atmlst), 3), dtype=dm1.dtype)
+    de_renorm = np.zeros_like(de_hcore)
+    de_coul = np.zeros_like(de_hcore)
+    de_xc = np.zeros_like(de_hcore)
 
     aoslices = mol.aoslice_by_atom()
     hcore_deriv = mf_grad.hcore_generator(mol)
@@ -177,7 +178,7 @@ def mcpdft_HellmanFeynman_grad (mc, ot, veff1, veff2, mo_coeff=None, ci=None,
     mo_cas = mo_coeff[:,ncore:nocc]
 
     dm1 = dm_core + dm_cas
-    dm1 = tag_array (dm1, mo_coeff=mo_coeff, mo_occ=mo_occup)
+    dm1 = lib.tag_array (dm1, mo_coeff=mo_coeff, mo_occ=mo_occup)
 
     # MRH: vhf1c and vhf1a should be the TRUE vj_c and vj_a (no vk!)
     vj = mf_grad.get_jk (dm=dm1)[0]
@@ -201,7 +202,7 @@ def mcpdft_HellmanFeynman_grad (mc, ot, veff1, veff2, mo_coeff=None, ci=None,
     # defined without the spin-density matrices and it's still valid!
     casdm1, casdm2 = mc.fcisolver.make_rdm12(ci, ncas, nelecas)
     twoCDM = _dms.dm2_cumulant (casdm2, casdm1)
-    dm1 = tag_array (dm1, mo_coeff=mo_occ, mo_occ=mo_occup[:nocc])
+    dm1 = lib.tag_array (dm1, mo_coeff=mo_occ, mo_occ=mo_occup[:nocc])
     make_rho = ot._numint._gen_rho_evaluator (mol, dm1, 1)[0]
     dvxc = np.zeros ((3,nao))
     idx = np.array ([[1,4,5,6],[2,5,7,8],[3,6,8,9]], dtype=np.int_)

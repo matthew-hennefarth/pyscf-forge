@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+from pyscf import lib
 from pyscf.lib import logger, current_memory, tag_array
 from pyscf.dft.gen_grid import BLKSIZE
 from pyscf.mcpdft.otpd import get_ontop_pair_density
@@ -106,7 +107,7 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
         raise NotImplementedError("effective potential for hybrid functionals")
 
     E_ot = 0.0
-    veff1 = np.zeros((nao, nao), dtype=dm1s.dtype)
+    veff1 = lib.zeros((nao, nao), dtype=dm1s.dtype)
     veff2 = _ERIS(ot.mol, mo_coeff, ncore, ncas, paaa_only=paaa_only,
                   aaaa_only=aaaa_only, jk_pc=jk_pc, verbose=ot.verbose,
                   stdout=ot.stdout)
@@ -114,7 +115,7 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
     t0 = (logger.process_clock(), logger.perf_counter())
 
     # Density matrices
-    dm_core = mo_core @ mo_core.T
+    dm_core = lib.dot(mo_core, lib.transpose(mo_core))
     dm_cas = dm1s - dm_core[None, :, :]
     dm_core *= 2
 
@@ -213,7 +214,7 @@ def lazy_kernel(ot, dm1s, cascm2, mo_cas, max_memory=2000, hermi=1,
     nao = mo_cas.shape[0]
 
     veff1 = np.zeros_like(dm1s[0])
-    veff2 = np.zeros((nao, nao, nao, nao), dtype=veff1.dtype)
+    veff2 = lib.zeros((nao, nao, nao, nao), dtype=veff1.dtype)
 
     t0 = (logger.process_clock(), logger.perf_counter())
     make_rho = tuple(ni._gen_rho_evaluator(ot.mol, dm1s[i, :, :], hermi)

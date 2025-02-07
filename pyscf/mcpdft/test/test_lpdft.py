@@ -113,11 +113,6 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
 
-    def assertListAlmostEqual(self, first_list, second_list, expected):
-        self.assertTrue(len(first_list) == len(second_list))
-        for first, second in zip(first_list, second_list):
-            self.assertAlmostEqual(first, second, expected)
-
     def test_lih_2_states_adiabat(self):
         e_mcscf_avg = np.dot (lih.e_mcscf, lih.weights)
         hcoup = abs(lih.lpdft_ham[1,0])
@@ -138,8 +133,8 @@ class KnownValues(unittest.TestCase):
 
         self.assertAlmostEqual(e_mcscf_avg, E_MCSCF_AVG_EXPECTED, 7)
         self.assertAlmostEqual(abs(hcoup), HCOUP_EXPECTED, 7)
-        self.assertListAlmostEqual(hdiag, HDIAG_EXPECTED, 7)
-        self.assertListAlmostEqual(e_states, E_STATES_EXPECTED, 7)
+        self.assertAlmostEqual(lib.fp(hdiag), lib.fp(HDIAG_EXPECTED), delta=1e-7)
+        self.assertAlmostEqual(lib.fp(e_states), lib.fp(E_STATES_EXPECTED), delta=1e-7)
 
     def test_lih_4_states_adiabat(self):
         e_mcscf_avg = np.dot(lih_4.e_mcscf, lih_4.weights)
@@ -156,9 +151,9 @@ class KnownValues(unittest.TestCase):
         E_STATES_EXPECTED = [-7.99928176, -7.84576642, -7.80476519, -7.80476519]
 
         self.assertAlmostEqual(e_mcscf_avg, E_MCSCF_AVG_EXPECTED, 7)
-        self.assertListAlmostEqual(hdiag, HDIAG_EXPECTED, 7)
-        self.assertListAlmostEqual(list(map(abs, hcoup)), HCOUP_EXPECTED, 7)
-        self.assertListAlmostEqual(e_states, E_STATES_EXPECTED, 7)
+        self.assertAlmostEqual(lib.fp(hdiag), lib.fp(HDIAG_EXPECTED), delta=1e-7)
+        self.assertAlmostEqual(lib.fp(list(map(abs, hcoup))), lib.fp(HCOUP_EXPECTED), delta=1e-7)
+        self.assertAlmostEqual(lib.fp(e_states), lib.fp(E_STATES_EXPECTED), delta=1e-7)
 
 
     def test_lih_hybrid_tPBE_adiabat(self):
@@ -179,9 +174,9 @@ class KnownValues(unittest.TestCase):
 
         self.assertAlmostEqual(e_mcscf_tpbe_avg, E_MCSCF_AVG_EXPECTED, 7)
         self.assertAlmostEqual(e_mcscf_tpbe_avg, e_mcscf_tpbe0_avg, 9)
-        self.assertListAlmostEqual(lih_tpbe.e_states, E_TPBE_STATES_EXPECTED, 7)
-        self.assertListAlmostEqual(lih_tpbe0.e_states, e_hlpdft, 9)
-        self.assertListAlmostEqual(hlpdft_ham.flatten(), lih_tpbe0.lpdft_ham.flatten(), 9)
+        self.assertAlmostEqual(lib.fp(lih_tpbe.e_states), lib.fp(E_TPBE_STATES_EXPECTED), delta=1e-7)
+        self.assertAlmostEqual(lib.fp(lih_tpbe0.e_states), lib.fp(e_hlpdft), delta=1e-9)
+        self.assertAlmostEqual(lib.fp(hlpdft_ham), lib.fp(lih_tpbe0.lpdft_ham), delta=1e-9)
 
     def test_water_spatial_samix(self):
         e_mcscf_avg = np.dot(water.e_mcscf, water.weights)
@@ -195,9 +190,9 @@ class KnownValues(unittest.TestCase):
         HDIAG_EXPECTED = [-76.29913074162732, -75.93502437481517]
 
         self.assertAlmostEqual(e_mcscf_avg, E_MCSCF_AVG_EXPECTED, 7)
-        self.assertListAlmostEqual(hdiag, HDIAG_EXPECTED, 7)
+        self.assertAlmostEqual(lib.fp(hdiag), lib.fp(HDIAG_EXPECTED), delta=1e-7)
         # The off-diagonal should be identical to zero because of symmetry
-        self.assertListAlmostEqual(e_states, hdiag, 10)
+        self.assertAlmostEqual(lib.fp(e_states), lib.fp(hdiag), delta=1e-10)
 
     def test_water_spin_samix(self):
         e_mcscf_avg = np.dot(t_water.e_mcscf, t_water.weights)
@@ -214,8 +209,8 @@ class KnownValues(unittest.TestCase):
         HCOUP_EXPECTED = 0.03453830159471619
 
         self.assertAlmostEqual(e_mcscf_avg, E_MCSCF_AVG_EXPECTED, 7)
-        self.assertListAlmostEqual(e_states, E_STATES_EXPECTED, 6)
-        self.assertListAlmostEqual(hdiag, HDIAG_EXPECTED, 6)
+        self.assertAlmostEqual(lib.fp(e_states), lib.fp(E_STATES_EXPECTED), delta=1e-6)
+        self.assertAlmostEqual(lib.fp(hdiag), lib.fp(HDIAG_EXPECTED), delta=1e-6)
         self.assertAlmostEqual(hcoup, HCOUP_EXPECTED, 6)
 
     def test_chkfile(self):

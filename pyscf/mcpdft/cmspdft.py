@@ -106,7 +106,7 @@ def _e_coul (w_IJKL, nroots):
 
     tril_mask = lib.zeros([nroots,nroots], dtype=np.bool_)
     tril_mask[np.tril_indices (nroots,k=-1)] = True
-    dQaa = 2*(w_IJJJ.T-w_IJJJ)[tril_mask]
+    dQaa = 2*(lib.transpose(w_IJJJ)-w_IJJJ)[tril_mask]
     # My sign convention is row idx = source state; col idx = dest
     # state, lower-triangular positive. The Newton iteration is designed
     # with this in mind and breaks if I flip it. However, regardless of
@@ -118,7 +118,7 @@ def _e_coul (w_IJKL, nroots):
     # flipping this sign confuse you: the sign here is CORRECT.
 
     v_IJ_K = -4*w_IKJK - 2*w_IJKK
-    v_IJ_K += (w_IJJJ+w_IJJJ.T)[:,:,None]
+    v_IJ_K += lib.transpose_sum(w_IJJJ)[:,:,None]
     d2Qaa = np.zeros_like (w_IJKL)
     for k in range (nroots):
         d2Qaa[:,k,k,:] = v_IJ_K[:,:,k]
@@ -139,7 +139,7 @@ def e_coul_o0 (mc,ci):
     mo_cas = mc.mo_coeff[:,ncore:nocc]
     ci_array = np.array(ci)
     casdm1 = mc.fcisolver.states_make_rdm1 (ci,ncas,mc.nelecas)
-    dm1 = np.dot(casdm1, mo_cas.T)
+    dm1 = np.dot(casdm1, lib.transpose(mo_cas))
     dm1 = np.dot(mo_cas,dm1).transpose(1,0,2)
     j = mc._scf.get_j (dm=dm1)
     e_coul = (j*dm1).sum((1,2)) / 2

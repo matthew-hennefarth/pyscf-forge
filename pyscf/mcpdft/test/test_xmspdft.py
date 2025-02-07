@@ -1,6 +1,6 @@
 
 import numpy as np
-from pyscf import gto, scf, dft, mcpdft
+from pyscf import gto, scf, dft, mcpdft, lib
 from pyscf.mcpdft import xmspdft
 
 import unittest
@@ -31,11 +31,6 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
 
-    def assertListAlmostEqual(self, first_list, second_list, expected):
-        self.assertTrue(len(first_list) == len(second_list))
-        for first, second in zip(first_list, second_list):
-            self.assertAlmostEqual(first, second, expected)
-
     # Reference values from
     # - PySCF        hash 8ae2bb2eefcd342c52639097517b1eda7ca5d1cd
     # - PySCF-forge  hash 5b8ab86a31917ca1a6b414f7a590c4046b9a8994
@@ -60,7 +55,7 @@ class KnownValues(unittest.TestCase):
         EXPECTED_SA_FOCK_DIAG = [-4.207598506457942, -3.88169762424571]
         EXPECTED_SA_FOCK_OFFDIAG = 0.05063053788053997
 
-        self.assertListAlmostEqual(safock.diagonal(), EXPECTED_SA_FOCK_DIAG, 9)
+        self.assertAlmostEqual(lib.fp(safock.diagonal()), lib.fp(EXPECTED_SA_FOCK_DIAG), delta=1e-9)
         self.assertAlmostEqual(abs(safock[0,1]),EXPECTED_SA_FOCK_OFFDIAG, 9)
 
     def test_lih_safock_unequal(self):
@@ -68,12 +63,12 @@ class KnownValues(unittest.TestCase):
         EXPECTED_SA_FOCK_DIAG = [-4.194714957289011, -3.8317682977263754]
         EXPECTED_SA_FOCK_OFFDIAG = 0.006987847963283834
 
-        self.assertListAlmostEqual(safock.diagonal(), EXPECTED_SA_FOCK_DIAG, 9)
+        self.assertAlmostEqual(lib.fp(safock.diagonal()), lib.fp(EXPECTED_SA_FOCK_DIAG), delta=1e-9)
         self.assertAlmostEqual(abs(safock[0, 1]), EXPECTED_SA_FOCK_OFFDIAG, 9)
 
     def test_lih_adiabats(self):
         E_STATES_EXPECTED = [-7.858628517291297, -7.69980510010583]
-        self.assertListAlmostEqual(mc.e_states, E_STATES_EXPECTED, 9)
+        self.assertAlmostEqual(lib.fp(mc.e_states), lib.fp(E_STATES_EXPECTED), delta=1e-9)
 
     def test_lih_unequal(self):
         e_mcscf_avg = np.dot(mc_unequal.e_mcscf, mc_unequal.weights)
@@ -88,7 +83,7 @@ class KnownValues(unittest.TestCase):
         self.assertAlmostEqual(e_mcscf_avg, E_MCSCF_AVG_EXPECTED, 9)
         self.assertAlmostEqual(hcoup, HCOUP_EXPECTED, 9)
         self.assertAlmostEqual(ct_mcscf, CT_MCSCF_EXPECTED, 9)
-        self.assertListAlmostEqual(mc_unequal.e_states, E_STATES_EXPECTED, 9)
+        self.assertAlmostEqual(lib.fp(mc_unequal.e_states), lib.fp(E_STATES_EXPECTED), delta=1e-9)
 
 
 if __name__ == "__main__":

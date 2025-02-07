@@ -16,7 +16,7 @@
 # Author: Bhavnesh Jangid <jangidbhavnesh@uchicago.com>
 
 import numpy as np
-from pyscf import gto, scf, dft, fci
+from pyscf import gto, scf, dft, fci, lib
 from pyscf import mcpdft
 import unittest
 
@@ -136,11 +136,6 @@ def tearDownModule():
 
 class KnownValues(unittest.TestCase):
 
-    def assertListAlmostEqual(self, first_list, second_list, expected):
-        self.assertTrue(len(first_list) == len(second_list))
-        for first, second in zip(first_list, second_list):
-            self.assertAlmostEqual(first, second, expected)
-
     def test_tmgga(self):
         e_mcscf = lih_tm06l.e_mcscf
         epdft = lih_tm06l.e_tot
@@ -157,8 +152,8 @@ class KnownValues(unittest.TestCase):
 
         self.assertAlmostEqual(e_mcscf, E_CASSCF_EXPECTED, 6)
         self.assertAlmostEqual(epdft, E_MCPDFT_EXPECTED, 6)
-        self.assertListAlmostEqual(sa_e_mcscf, SA_E_CASSCF_EXPECTED, 6)
-        self.assertListAlmostEqual(sa_epdft, SA_E_MCPDFT_EXPECTED, 6)
+        self.assertAlmostEqual(lib.fp(sa_e_mcscf), lib.fp(SA_E_CASSCF_EXPECTED), delta=1e-6)
+        self.assertAlmostEqual(lib.fp(sa_epdft), lib.fp(SA_E_MCPDFT_EXPECTED), delta=1e-6)
 
     def test_t_hyb_mgga(self):
         e_mcscf = lih_tm06l0.e_mcscf
@@ -188,8 +183,8 @@ class KnownValues(unittest.TestCase):
 
         self.assertAlmostEqual(e_mcscf, E_CASSCF_EXPECTED, 6)
         self.assertAlmostEqual(epdft, E_MCPDFT_EXPECTED, 6)
-        self.assertListAlmostEqual(sa_e_mcscf, SA_E_CASSCF_EXPECTED, 6)
-        self.assertListAlmostEqual(sa_epdft, SA_E_MCPDFT_EXPECTED, 6)
+        self.assertAlmostEqual(lib.fp(sa_e_mcscf), lib.fp(SA_E_CASSCF_EXPECTED), delta=1e-6)
+        self.assertAlmostEqual(lib.fp(sa_epdft), lib.fp(SA_E_MCPDFT_EXPECTED), delta=1e-6)
 
     def test_water_triplet_tm06l(self):
         e_mcscf = water_tm06l.e_mcscf

@@ -15,6 +15,7 @@
 #
 
 import numpy as np
+from pyscf import lib
 from pyscf.lib import logger
 from pyscf.dft.numint import _dot_ao_dm
 
@@ -27,8 +28,10 @@ def _grid_ao2mo (mol, ao, mo_coeff, non0tab=None, shls_slice=None,
     nmo = mo_coeff.shape[-1]
     mo = np.empty ((nderiv,nmo,ngrid), dtype=mo_coeff.dtype, order='C')
     mo = mo.transpose (0,2,1)
-    if shls_slice is None: shls_slice = (0, mol.nbas)
-    if ao_loc is None: ao_loc = mol.ao_loc_nr ()
+    if shls_slice is None:
+        shls_slice = (0, mol.nbas)
+    if ao_loc is None:
+        ao_loc = mol.ao_loc_nr ()
     for ideriv in range (nderiv):
         ao_i = ao[ideriv,:,:]
         mo[ideriv] = _dot_ao_dm (mol, ao_i, mo_coeff, non0tab, shls_slice,
@@ -109,7 +112,7 @@ def get_ontop_pair_density (ot, rho, ao, cascm2, mo_cas, deriv=0,
     # = (deriv,AOs,grids).
     grid2amo = _grid_ao2mo (ot.mol, ao, mo_cas, non0tab=non0tab)
     t0 = logger.timer (ot, 'otpd ao2mo', *t0)
-    gridkern = np.zeros (grid2amo.shape + (grid2amo.shape[2],),
+    gridkern = lib.zeros(grid2amo.shape + (grid2amo.shape[2],),
         dtype=grid2amo.dtype)
     gridkern[0] = grid2amo[0,:,:,np.newaxis] * grid2amo[0,:,np.newaxis,:]
     # r_0ai,  r_0aj  -> r_0aij
@@ -244,7 +247,7 @@ def density_orbital_derivative (ot, ncore, ncas, casdm1s, cascm2, rho, mo,
 
     drho = np.stack ([_grid_ao2mo (ot.mol, mo, dm1, non0tab=non0tab)
         for dm1 in dm1s_mo], axis=0).transpose (0,1,3,2)
-    dPi = np.zeros ((nderiv_Pi, nmo, ngrids), dtype=rho.dtype)
+    dPi = lib.zeros((nderiv_Pi, nmo, ngrids), dtype=rho.dtype)
     dPi[0] = ((drho[0][0] * rho[1,0,None,:])
            + (rho[0,0,None,:] * drho[1][0]))
     if deriv > 0:
@@ -259,7 +262,7 @@ def density_orbital_derivative (ot, ncore, ncas, casdm1s, cascm2, rho, mo,
 
     # Second cumulant and derivatives
     mo_cas = mo[:,:,ncore:nocc]
-    gridkern = np.zeros (mo_cas.shape + (mo_cas.shape[2],), dtype=mo_cas.dtype)
+    gridkern = lib.zeros(mo_cas.shape + (mo_cas.shape[2],), dtype=mo_cas.dtype)
     gridkern[0] = mo_cas[0,:,:,np.newaxis] * mo_cas[0,:,np.newaxis,:]
     # r_0ai,  r_0aj  -> r_0aij
     wrk0 = np.tensordot (gridkern[0], cascm2, axes=2)

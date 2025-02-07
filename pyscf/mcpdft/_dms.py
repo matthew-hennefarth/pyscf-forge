@@ -190,18 +190,18 @@ def casdm1s_to_dm1s (mc, casdm1s, mo_coeff=None, ncore=None, ncas=None):
     casdm1s = np.asarray (casdm1s)
     dm1s_cas = np.dot (casdm1s, moH_cas)
     dm1s_cas = np.dot (mo_cas, dm1s_cas).transpose (1,0,2)
-    dm1s_core = np.dot (mo_core, moH_core)
+    dm1s_core = lib.dot (mo_core, moH_core)
     dm1s = dm1s_cas + dm1s_core[None,:,:]
 
     # Tags for speeding up rho generators and DF fns
     no_coeff = mo_coeff[:,:ncore+ncas]
     no_coeff = np.stack ([no_coeff, no_coeff], axis=0)
-    no_occ = np.zeros ((2,ncore+ncas))
+    no_occ = lib.zeros ((2,ncore+ncas))
     no_occ[:,:ncore] = 1.0
     no_cas = no_coeff[:,:,ncore:]
     for i in range (2):
         no_occ[i,ncore:], umat = linalg.eigh (-casdm1s[i])
-        no_cas[i,:,:] = np.dot (no_cas[i,:,:], umat)
+        no_cas[i,:,:] = lib.dot (no_cas[i,:,:], umat)
     no_occ[:,ncore:] *= -1
     dm1s = lib.tag_array (dm1s, mo_coeff=no_coeff, mo_occ=no_occ)
 

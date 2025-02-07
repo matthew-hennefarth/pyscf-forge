@@ -165,7 +165,7 @@ def kernel(ot, dm1s, cascm2, mo_coeff, ncore, ncas,
                                     dens_deriv, mask)
         t0 = logger.timer(ot, 'on-top pair density calculation', *t0)
         eot, vot = ot.eval_ot(rho, Pi, weights=weight)[:2]
-        E_ot += eot.dot(weight)
+        E_ot += np.inner(eot, weight)
         vrho, vPi = vot
         t0 = logger.timer(ot, 'effective potential kernel calculation', *t0)
         if ao.ndim == 2: ao = ao[None, :, :]

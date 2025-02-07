@@ -188,11 +188,7 @@ def si_newton (mc, ci=None, objfn=None, max_cyc=None, conv_tol=None,
         u = lib.dot (u, lib.transpose(lib.expm(t), inplace=True))
         f, df, d2f = f_update (u)
 
-    try:
-        ci = np.tensordot(u.T, ci, 1)
-    except ValueError as e:
-        print (u.shape, ci.shape)
-        raise (e)
+    ci = np.tensordot(lib.transpose(u), ci, 1)
     if mc.verbose >= lib.logger.DEBUG:
         fmt_str = ' ' + ' '.join (['{:5.2f}',]*nroots)
         log.debug ("{} final overlap matrix:".format (hdr))
@@ -357,9 +353,11 @@ class _MSPDFT (mcpdft.MultiStateMCPDFTSolver):
             if uci.upper () in si_dict:
                 uci = si_dict[uci.upper ()]
             else:
-                raise RuntimeError ("valid uci : 'MCSCF', 'MSPDFT', or ndarray")
-        if ci is None: ci = self.ci
-        return list (np.tensordot (uci.T, np.asarray (ci), axes=1))
+                raise RuntimeError("valid uci : 'MCSCF', 'MSPDFT', or ndarray")
+        if ci is None:
+            ci = self.ci
+        return list(np.tensordot(lib.transpose(uci), np.asarray(ci), axes=1))
+
     get_ci_basis=get_ci_adiabats
 
     def kernel (self, mo_coeff=None, ci0=None, otxc=None, grids_level=None,
@@ -379,7 +377,7 @@ class _MSPDFT (mcpdft.MultiStateMCPDFTSolver):
         self.hdiag_pdft = self.compute_pdft_energy_(
             otxc=otxc, grids_level=grids_level, grids_attr=grids_attr)[-1]
         self.e_states, self.si_pdft = self._eig_si (self.get_heff_pdft ())
-        self.e_tot = np.dot (self.e_states, self.weights)
+        self.e_tot = np.inner(self.e_states, self.weights)
         self._log_diabats ()
         self._log_adiabats ()
         return (self.e_tot, self.e_ot, self.e_mcscf, self.e_cas, self.ci,
@@ -423,7 +421,7 @@ class _MSPDFT (mcpdft.MultiStateMCPDFTSolver):
         '''
         if ci is None: ci = self.ci
         if ci0 is not None:
-            ovlp = np.tensordot (np.asarray (ci).conj (), np.asarray (ci0),
+            ovlp = np.tensordot (np.asarray(ci).conj(), np.asarray (ci0),
                                  axes=((1,2),(1,2)))
             u, svals, vh = linalg.svd (ovlp)
             ci = self.get_ci_basis (ci=ci, uci=lib.dot (u,vh))
@@ -485,7 +483,7 @@ class _MSPDFT (mcpdft.MultiStateMCPDFTSolver):
         hdr = '{} diabatic (intermediate)'.format (self.__class__.__name__)
         log.note ('%s objective function  value = %.15g |grad| = %.7g', hdr, f, linalg.norm (df))
         log.note ('%s average energy  EPDFT = %.15g  EMCSCF = %.15g', hdr,
-                  np.dot (self.weights, hdiag_pdft), np.dot (self.weights, hdiag_mcscf))
+                  np.inner(self.weights, hdiag_pdft), np.inner(self.weights, hdiag_mcscf))
         log.note ('%s states:', hdr)
         if getattr (self.fcisolver, 'spin_square', None):
             ss = self.fcisolver.states_spin_square (self.ci, self.ncas,

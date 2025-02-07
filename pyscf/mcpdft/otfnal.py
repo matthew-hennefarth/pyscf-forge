@@ -178,7 +178,7 @@ def energy_ot (ot, casdm1s, casdm2, mo_coeff, ncore, max_memory=2000, hermi=1):
         if rho.ndim == 2:
             rho = np.expand_dims (rho, 1)
             Pi = np.expand_dims (Pi, 0)
-        E_ot += ot.eval_ot (rho, Pi, dderiv=0, weights=weight)[0].dot (weight)
+        E_ot += np.inner(ot.eval_ot (rho, Pi, dderiv=0, weights=weight)[0], weight)
         t0 = logger.timer (ot, 'on-top energy calculation', *t0)
 
     return E_ot

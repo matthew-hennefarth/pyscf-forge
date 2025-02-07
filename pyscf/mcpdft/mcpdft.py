@@ -154,15 +154,14 @@ def energy_mcwfn(mc, mo_coeff=None, ci=None, ot=None, state=0, casdm1s=None,
         vj = vj[0] + vj[1]
     else:
         vj = mc._scf.get_j(dm=dm1)
-    Te_Vne = np.tensordot(h, dm1)
+    Te_Vne = np.inner(h.ravel(), dm1.ravel())
     # (vj_a + vj_b) * (dm_a + dm_b)
-    E_j = np.tensordot(vj, dm1) / 2
+    E_j = 0.5 * np.inner(vj.ravel(), dm1.ravel())
     # (vk_a * dm_a) + (vk_b * dm_b) Mind the difference!
     if log.verbose >= logger.DEBUG or abs(hyb_x) > 1e-10:
-        E_x = -(np.tensordot(vk[0], dm1s[0]) + np.tensordot(vk[1], dm1s[1]))
-        E_x /= 2.0
+        E_x = -0.5 * np.inner(vk.ravel(), dm1s.ravel())
     else:
-        E_x = 0
+        E_x = 0.0
     log.debug('CAS energy decomposition:')
     log.debug('Vnn = %s', Vnn)
     log.debug('Te + Vne = %s', Te_Vne)
@@ -173,7 +172,7 @@ def energy_mcwfn(mc, mo_coeff=None, ci=None, ot=None, state=0, casdm1s=None,
         # g_pqrs * l_pqrs / 2
         # if log.verbose >= logger.DEBUG:
         aeri = ao2mo.restore(1, mc.get_h2eff(mo_coeff), mc.ncas)
-        E_c = np.tensordot(aeri, cascm2, axes=4) / 2
+        E_c = np.inner(aeri.ravel(), cascm2.ravel()) / 2
         log.debug('E_c = %s', E_c)
     if abs(hyb_x) > 1e-10 or abs(hyb_c) > 1e-10:
         log.debug(('Adding %s * %s CAS exchange, %s * %s CAS correlation to '
@@ -347,11 +346,11 @@ def _get_e_decomp(mc, mo_coeff=None, ci=None, ot=None, state=0, verbose=None):
     h1, h0 = mc.h1e_for_cas()
     h2 = ao2mo.restore(1, mc.get_h2eff(), ncas)
     j = mc._scf.get_j(dm=dm1)
-    e_1e = np.dot(h.ravel(), dm1.ravel())
-    e_coul = 0.5 * np.dot(j.ravel(), dm1.ravel())
+    e_1e = np.inner(h.ravel(), dm1.ravel())
+    e_coul = 0.5 * np.inner(j.ravel(), dm1.ravel())
 
-    e_mcscf = h0 + np.dot(h1.ravel(), casdm1.ravel()) + (
-            np.dot(h2.ravel(), casdm2.ravel()) * 0.5)
+    e_mcscf = h0 + np.inner(h1.ravel(), casdm1.ravel()) + (
+            np.inner(h2.ravel(), casdm2.ravel()) * 0.5)
     e_otxc = [fnal.energy_ot(casdm1s, casdm2, mo_coeff, ncore,
                              max_memory=mc.max_memory)
               for fnal in ot]
@@ -505,7 +504,7 @@ class _PDFT:
             # TODO: redesign this. MC-SCF e_states is stapled to
             # fcisolver.e_states, but I don't want MS-PDFT to be
             # because that makes no sense
-            self.e_tot = np.dot(e_states, self.weights)
+            self.e_tot = np.inner(e_states, self.weights)
             e_states = self.e_states
         elif nroots > 1:  # nroots>1 CASCI
             self.e_tot = [e_tot for e_tot, e_ot in epdft]

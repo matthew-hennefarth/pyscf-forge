@@ -121,13 +121,13 @@ def get_lpdft_hconst(
 
     # Coulomb interaction
     vj = mc._scf.get_j(dm=dm1)
-    e_veff1_j = np.tensordot(veff1 + hyb * 0.5 * vj, dm1)
+    e_veff1_j = np.inner((veff1 + hyb * 0.5 * vj).ravel(), dm1.ravel())
 
     # Deal with 2-electron on-top potential energy
     e_veff2 = veff2.energy_core
-    e_veff2 += np.tensordot(veff2.vhf_c[ncore:nocc, ncore:nocc], casdm1_0)
-    e_veff2 += 0.5 * np.tensordot(
-        veff2.papa[ncore:nocc, :, ncore:nocc, :], casdm2_0, axes=4
+    e_veff2 += np.inner(veff2.vhf_c[ncore:nocc, ncore:nocc].ravel(), casdm1_0.ravel())
+    e_veff2 += 0.5 * np.inner(
+        veff2.papa[ncore:nocc, :, ncore:nocc, :].ravel(), casdm2_0.ravel()
     )
 
     # h_nuc + E_ot - 1/2 g_pqrs D_pq D_rs - V_pq D_pq - 1/2 v_pqrs d_pqrs
@@ -188,10 +188,10 @@ def transformed_h1e_for_cas(
     energy_core = mc.get_lpdft_hconst(E_ot, casdm1s_0, casdm2_0, hyb)
 
     if mo_core.size != 0:
-        core_dm = lib.dot(mo_core, lib.transpose(mo_core.conj())) * 2
+        core_dm = 2.0 * lib.dot(mo_core, lib.transpose(mo_core.conj()))
         # This is precomputed in MRH's ERIS object
         energy_core += mc.veff2.energy_core
-        energy_core += np.tensordot(core_dm, hcore_eff).real
+        energy_core += np.inner(core_dm.ravel(), hcore_eff.ravel()).real
 
     h1eff = lib.dot(lib.transpose(mo_cas.conj()), lib.dot(hcore_eff, mo_cas))
     # Add in the 2-electron portion that acts as a 1-electron operator
@@ -330,7 +330,7 @@ def kernel(mc, mo_coeff=None, ci0=None, ot=None, dump_chk=True, **kwargs):
 
     logger.debug(mc, f"L-PDFT SI:\n{mc.si_pdft}")
 
-    e_tot = np.dot(e_states, mc.weights)
+    e_tot = e_states @ mc.weights
     ci = mc._get_ci_adiabats(ci_mcscf)
 
     mc.e_tot = e_tot
@@ -503,7 +503,7 @@ class _LPDFT(mcpdft.MultiStateMCPDFTSolver):
             ci : list of length nroots
                 CI vectors in basis of L-PDFT Hamiltonian eigenvectors
         """
-        return list(np.tensordot(self.si_pdft.T, np.asarray(ci_mcscf), axes=1))
+        return list(np.tensordot(lib.transpose(self.si_pdft), np.asarray(ci_mcscf), axes=1))
 
     def _eig_si(self, ham):
         return linalg.eigh(ham)

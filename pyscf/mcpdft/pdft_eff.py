@@ -134,15 +134,15 @@ class _ERIS:
         elif self.paaa_only:
             paaa = ot.get_eff_2body([ao, mo_cas, mo_cas, mo_cas],
                                  weight, eff_Pi, aosym='s1')
-            paaa = np.tensordot(mo_coeff.T, paaa, axes=1)
+            paaa = np.tensordot(lib.transpose(mo_coeff), paaa, axes=1)
             self.papa[:, :, ncore:nocc, :] += paaa
             self.papa[ncore:nocc, :, :, :] += paaa.transpose(2, 3, 0, 1)
             self.papa[ncore:nocc, :, ncore:nocc, :] -= paaa[ncore:nocc, :, :, :]
         else:
             papa = ot.get_eff_2body([ao, mo_cas, ao, mo_cas],
                                  weight, eff_Pi, aosym='s1')
-            papa = np.tensordot(mo_coeff.T, papa, axes=1)
-            self.papa += np.tensordot(mo_coeff.T, papa,
+            papa = np.tensordot(lib.transpose(mo_coeff), papa, axes=1)
+            self.papa += np.tensordot(lib.transpose(mo_coeff), papa,
                                       axes=((1), (2))).transpose(1, 2, 0, 3)
 
     def _ftpt_ppaa_incore(self):

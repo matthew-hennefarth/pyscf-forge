@@ -52,9 +52,9 @@ def coulomb_tensor (mc, mo_coeff=None, ci=None, h2eff=None, eris=None):
     tdm1 = np.stack (mc.fcisolver.states_trans_rdm12(ci[col], ci[row], ncas,
         nelecas)[0], axis=0)
 
-    w = np.tensordot (tdm1, h2eff, axes=2)
-    w = np.tensordot (w, tdm1, axes=((1,2),(1,2)))
-    return ao2mo.restore (1, w, nroots)
+    w = np.tensordot(tdm1, h2eff, axes=2)
+    w = np.tensordot(w, tdm1, axes=((1,2),(1,2)))
+    return ao2mo.restore(1, w, nroots)
 
 def e_coul (mc, mo_coeff=None, ci=None, h2eff=None, eris=None):
     '''Compute the sum of active-space Coulomb energies (the diabatizer
@@ -147,11 +147,11 @@ def e_coul_o0 (mc,ci):
     trans12_tdm1, trans12_tdm2 = mc.fcisolver.states_trans_rdm12(ci_array[col],
         ci_array[rows],ncas,mc.nelecas)
     trans12_tdm1_array = np.array(trans12_tdm1)
-    tdm1 = np.dot(trans12_tdm1_array,mo_cas.T)
+    tdm1 = np.dot(trans12_tdm1_array, lib.transpose(mo_cas))
     tdm1 = np.dot(mo_cas,tdm1).transpose(1,0,2)
     rowscol2ind = lib.zeros((nroots, nroots), dtype=np.int32)
     rowscol2ind[(rows,col)] = list (range (pairs))
-    rowscol2ind += rowscol2ind.T
+    lib.transpose_sum(rowscol2ind, inplace=True)
     rowscol2ind[np.diag_indices(nroots)] = -1
 
     def w_klmn(k,l,m,n,dm,tdm):

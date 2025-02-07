@@ -18,6 +18,7 @@
 import numpy as np
 from scipy import linalg
 
+from pyscf import lib
 from pyscf.lib import logger
 from pyscf.fci import direct_spin1
 from pyscf import __config__
@@ -187,12 +188,12 @@ def transformed_h1e_for_cas(
     energy_core = mc.get_lpdft_hconst(E_ot, casdm1s_0, casdm2_0, hyb)
 
     if mo_core.size != 0:
-        core_dm = np.dot(mo_core, mo_core.conj().T) * 2
+        core_dm = lib.dot(mo_core, lib.transpose(mo_core.conj())) * 2
         # This is precomputed in MRH's ERIS object
         energy_core += mc.veff2.energy_core
         energy_core += np.tensordot(core_dm, hcore_eff).real
 
-    h1eff = mo_cas.conj().T @ hcore_eff @ mo_cas
+    h1eff = lib.dot(lib.transpose(mo_cas.conj()), lib.dot(hcore_eff, mo_cas))
     # Add in the 2-electron portion that acts as a 1-electron operator
     h1eff += mc.veff2.vhf_c[ncore:nocc, ncore:nocc]
 

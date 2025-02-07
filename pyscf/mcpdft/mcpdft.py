@@ -15,12 +15,12 @@
 #
 import numpy as np
 from copy import deepcopy
-from pyscf import ao2mo, fci, mcscf, lib, __config__
+from pyscf import ao2mo, lib, __config__
 from pyscf.lib import logger
 from pyscf.dft import gen_grid
 from pyscf.mcscf import mc1step
 from pyscf.mcscf.addons import StateAverageMCSCFSolver, state_average_mix
-from pyscf.mcscf.addons import state_average_mix_, StateAverageMixFCISolver
+from pyscf.mcscf.addons import state_average_mix_
 from pyscf.mcscf.df import _DFCASSCF, _DFCAS
 from pyscf.mcpdft import pdft_veff, pdft_feff
 from pyscf.mcpdft.otfnal import transfnal, get_transfnal

@@ -329,7 +329,7 @@ class transfnal (otfnal):
         if nderiv > 4:
             raise NotImplementedError("derivatives above order 1")
 
-        R = np.zeros ((nderiv,ngrids), dtype=Pi.dtype)
+        R = lib.zeros((nderiv,ngrids), dtype=Pi.dtype)
         R[0,:] = 1
         idx = rho_avg[0] >= (1e-15 / 2)
         # Chain rule!
@@ -434,7 +434,7 @@ class transfnal (otfnal):
         '''
         if R.ndim == 2: R = R[0]
         ngrids = R.size
-        zeta = np.zeros ((fn_deriv+1, ngrids), dtype=R.dtype)
+        zeta = lib.zeros((fn_deriv+1, ngrids), dtype=R.dtype)
         idx = R < _Rmax
         zeta[0,idx] = np.sqrt (1.0 - R[idx])
         if fn_deriv:
@@ -495,7 +495,7 @@ class transfnal (otfnal):
         '''
         ncol = 2 + int(self.dens_deriv>0)
         ngrid = rho.shape[-1]
-        jTx = np.zeros ((ncol,ngrid), dtype=x[0].dtype)
+        jTx = lib.zeros((ncol,ngrid), dtype=x[0].dtype)
         rho = rho.sum (0)
         R = self.get_ratio (Pi, rho/2)
         zeta = self.get_zeta (R, fn_deriv=1)
@@ -523,7 +523,7 @@ class transfnal (otfnal):
             3 rows for tLDA and 5 rows for tGGA
         '''
         nrow = 3 + 2*int(self.dens_deriv>0)
-        f = np.zeros ((nrow, x[0].shape[-1]), dtype=x[0].dtype)
+        f = lib.zeros((nrow, x[0].shape[-1]), dtype=x[0].dtype)
 
         rho = rho.sum (0)
         R = self.get_ratio (Pi, rho/2)
@@ -783,7 +783,7 @@ class ftransfnal (transfnal):
         ntc = 2 + int(self.dens_deriv>0)
         ncol = 2 + 3*int(self.dens_deriv>0)
         ngrid = rho.shape[-1]
-        jTx = np.zeros ((ncol,ngrid), dtype=x[0].dtype)
+        jTx = lib.zeros((ncol,ngrid), dtype=x[0].dtype)
         jTx[:ntc,:] = transfnal.jT_op (self, x, rho, Pi, **kwargs)
         rho = rho.sum (0)
         R = self.get_ratio (Pi[0:4,:], rho[0:4,:]/2)
@@ -812,7 +812,7 @@ class ftransfnal (transfnal):
         '''
         nrow_t = 3 + 2*int(self.dens_deriv>0)
         nrow = 3 + 12*int(self.dens_deriv>0)
-        f = np.zeros ((nrow, x[0].shape[-1]), dtype=x[0].dtype)
+        f = lib.zeros((nrow, x[0].shape[-1]), dtype=x[0].dtype)
         f[:nrow_t] = transfnal.d_jT_op (self, x, rho, Pi, **kwargs)
         if self.dens_deriv:
             rho = rho.sum (0)

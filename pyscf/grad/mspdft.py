@@ -317,7 +317,7 @@ class Gradients (mcpdft_grad.Gradients):
         is_list = isinstance (xci, list)
         is_tuple = isinstance (xci, tuple)
 
-        if ci is None: 
+        if ci is None:
             ci = self.base.ci
 
         nroots = self.nroots
@@ -332,10 +332,10 @@ class Gradients (mcpdft_grad.Gradients):
         if is_list:
             xci = list (xci)
 
-        elif is_tuple: 
+        elif is_tuple:
             xci = tuple(xci)
 
-        if symm > -1: 
+        if symm > -1:
             xis -= lib.transpose(xis)
         #else:
         #    assert (np.amax (np.abs (xis + xis.T)) < 1e-8), '{}'.format (xis)

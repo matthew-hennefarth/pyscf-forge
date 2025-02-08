@@ -17,7 +17,8 @@
 
 from pyscf.grad import rks as rks_grad
 from pyscf.dft import gen_grid
-from pyscf.lib import logger, tag_array, pack_tril, current_memory
+from pyscf import lib
+from pyscf.lib import logger, current_memory
 from pyscf.mcscf import casci, mc1step, newton_casscf
 from pyscf.grad import sacasscf
 from pyscf.mcscf.casci import cas_natorb
@@ -52,9 +53,9 @@ def get_ontop_response(
     nocc = ncore + ncas
     nao, nmo = mo_coeff.shape
 
-    dvxc = np.zeros((3, nao))
-    de_grid = np.zeros((len(atmlst), 3))
-    de_wgt = np.zeros((len(atmlst), 3))
+    dvxc = lib.zeros((3, nao), dtype=mo_coeff.dtype)
+    de_grid = lib.zeros((len(atmlst), 3), dtype=mo_coeff.dtype)
+    de_wgt = lib.zeros((len(atmlst), 3), dtype=mo_coeff.dtype)
 
     mo_coeff_0, ci_0, mo_occup_0 = cas_natorb(
         mc, mo_coeff=mo_coeff, ci=ci, casdm1=casdm1_0
@@ -73,7 +74,7 @@ def get_ontop_response(
     casdm2 = mc.make_one_casdm2(ci=ci, state=state)
     dm1s = _dms.casdm1s_to_dm1s(mc, casdm1s, mo_coeff=mo_coeff, ncore=ncore, ncas=ncas)
     dm1 = dm1s[0] + dm1s[1]
-    dm1 = tag_array(dm1, mo_coeff=mo_coeff[:, :nocc], mo_occ=mo_occup[:nocc])
+    dm1 = lib.tag_array(dm1, mo_coeff=mo_coeff[:, :nocc], mo_occ=mo_occup[:nocc])
 
     casdm1s_0, casdm2_0 = mc.get_casdm12_0(ci=ci_0)
     casdm1_0 = casdm1s_0[0] + casdm1s_0[1]
@@ -81,7 +82,9 @@ def get_ontop_response(
         mc, casdm1s_0, mo_coeff=mo_coeff_0, ncore=ncore, ncas=ncas
     )
     dm1_0 = dm1s_0[0] + dm1s_0[1]
-    dm1_0 = tag_array(dm1_0, mo_coeff=mo_coeff_0[:, :nocc], mo_occ=mo_occup_0[:nocc])
+    dm1_0 = lib.tag_array(
+        dm1_0, mo_coeff=mo_coeff_0[:, :nocc], mo_occ=mo_occup_0[:nocc]
+    )
 
     cascm2 = _dms.dm2_cumulant(casdm2, casdm1)
     cascm2_0 = _dms.dm2_cumulant(casdm2_0, casdm1_0)
@@ -89,7 +92,7 @@ def get_ontop_response(
     make_rho = ot._numint._gen_rho_evaluator(mol, dm1, 1)[0]
     make_rho_0 = ot._numint._gen_rho_evaluator(mol, dm1_0, 1)[0]
 
-    idx = np.array([[1, 4, 5, 6], [2, 5, 7, 8], [3, 6, 8, 9]], dtype=np.int_)
+    idx = np.array([[1, 4, 5, 6], [2, 5, 7, 8], [3, 6, 8, 9]], dtype=np.int32)
     # For addressing particular ao derivatives
     if ot.xctype == "LDA":
         idx = idx[:, 0:1]  # For LDAs, no second derivatives
@@ -97,7 +100,7 @@ def get_ontop_response(
     casdm2_pack = mcpdft_grad.pack_casdm2(cascm2, ncas)
     casdm2_0_pack = mcpdft_grad.pack_casdm2(cascm2_0, ncas)
 
-    full_atmlst = -np.ones(mol.natm, dtype=np.int_)
+    full_atmlst = -np.ones(mol.natm, dtype=np.int32)
     for k, ia in enumerate(atmlst):
         full_atmlst[ia] = k
 
@@ -311,7 +314,9 @@ def lpdft_HellmanFeynman_grad(
     gfock_impl = mcpdft_grad.gfock_sym(mc, mo_coeff, casdm1_0, casdm2_0, feff1, feff2)
     gfock = gfock_expl + gfock_impl
 
-    dme0 = mo_coeff @ (0.5 * (gfock + gfock.T)) @ mo_coeff.T
+    dme0 = lib.dot(
+        mo_coeff, lib.dot(lib.transpose_sum(gfock), lib.transpose(mo_coeff)), alpha=0.5
+    )
     del gfock, gfock_impl, gfock_expl
     t0 = logger.timer(mc, "L-PDFT HlFn gfock", *t0)
 
@@ -335,7 +340,7 @@ def lpdft_HellmanFeynman_grad(
     delta_dm1 = dm1 - dm1_0
 
     def coul_term(p0, p1):
-        return 2 * (
+        return 2.0 * (
             np.tensordot(dvj_0[:, p0:p1], delta_dm1[p0:p1])
             + np.tensordot(dvj[:, p0:p1], dm1_0[p0:p1])
         )
@@ -359,7 +364,7 @@ def lpdft_HellmanFeynman_grad(
     de = de_nuc + de_hcore + de_coul + de_renorm + de_xc + de_grid + de_wgt
 
     if auxbasis_response:
-        dvj_aux = dvj_all.aux[:,:,atmlst,:]
+        dvj_aux = dvj_all.aux[:, :, atmlst, :]
         de_aux = dvj_aux[1, 0] + dvj_aux[0, 1] - dvj_aux[1, 1]
         logger.debug(mc, "L-PDFT Hellmann-Feynman aux component:\n{}".format(de_aux))
         de += de_aux
@@ -657,8 +662,8 @@ class Gradients(sacasscf.Gradients):
         if hasattr(self.base, "_irrep_slices"):
             for ham_slice in ham_od:
                 ham_slice[np.diag_indices_from(ham_slice)] = 0.0
-                ham_slice += (
-                    ham_slice.T
+                lib.transpose_sum(
+                    ham_slice, inplace=True
                 )  # This corresponds to the arbitrary newton_casscf*2
 
             def Aop(x):
@@ -685,7 +690,7 @@ class Gradients(sacasscf.Gradients):
 
         else:
             ham_od[np.diag_indices_from(ham_od)] = 0.0
-            ham_od += ham_od.T  # This corresponds to the arbitrary newton_casscf*2
+            lib.transpose_sum(ham_od, inplace=True) # This corresponds to the arbitrary newton_casscf*2
 
             def Aop(x):
                 Ax = hop(x)

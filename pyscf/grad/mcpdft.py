@@ -120,9 +120,9 @@ def sum_terms(mf_grad, mol, atmlst,dm1, gfock, coul_term, dvxc):
         p0, p1 = aoslices[ia][2:]
         h1ao = hcore_deriv(ia)
         de_hcore[k] += np.tensordot(h1ao, dm1)
-        de_renorm[k] -= np.tensordot(s1[:, p0:p1], gfock[p0:p1])*2
+        de_renorm[k] -= 2.0 * np.tensordot(s1[:, p0:p1], gfock[p0:p1])
         de_coul[k] += coul_term(p0, p1)
-        de_xc[k] += dvxc[:, p0:p1].sum(1)*2
+        de_xc[k] += 2.0 * dvxc[:, p0:p1].sum(1)
 
     de_nuc = mf_grad.grad_nuc(mol, atmlst)
 
@@ -158,19 +158,19 @@ def mcpdft_HellmanFeynman_grad (mc, ot, veff1, veff2, mo_coeff=None, ci=None,
     casdm1, casdm2 = mc.fcisolver.make_rdm12(ci, ncas, nelecas)
 
     # gfock = Generalized Fock, Adv. Chem. Phys., 69, 63
-    dm_core = 2 * mo_core @ mo_core.T
-    dm_cas = mo_cas @ casdm1 @ mo_cas.T
+    dm_core = lib.dot(mo_core, lib.transpose(mo_core), alpha=2.0)
+    dm_cas = lib.dot(mo_cas, lib.dot(casdm1, lib.transpose(mo_cas)))
 
     gfock = gfock_sym(mc, mo_coeff, casdm1, casdm2, mc.get_hcore() + veff1, veff2)
-    dme0 = mo_coeff @ (0.5*(gfock+gfock.T)) @ mo_coeff.T
+    dme0 = lib.dot(mo_coeff, lib.dot(lib.transpose_sum(gfock, inplace=True), lib.transpose(mo_coeff)), alpha=0.5)
     del gfock
 
     if atmlst is None:
         atmlst = range(mol.natm)
 
-    de_grid = np.zeros ((len(atmlst),3))
-    de_wgt = np.zeros ((len(atmlst),3))
-    de_aux = np.zeros ((len(atmlst),3))
+    de_grid = lib.zeros ((len(atmlst),3), dtype=mo_coeff.dtype)
+    de_wgt = np.zeros_like(de_grid)
+    de_aux = np.zeros_like(de_grid)
 
     t0 = logger.timer (mc, 'PDFT HlFn gfock', *t0)
     mo_coeff, ci, mo_occup = cas_natorb (mc, mo_coeff=mo_coeff, ci=ci)
@@ -183,7 +183,7 @@ def mcpdft_HellmanFeynman_grad (mc, ot, veff1, veff2, mo_coeff=None, ci=None,
     # MRH: vhf1c and vhf1a should be the TRUE vj_c and vj_a (no vk!)
     vj = mf_grad.get_jk (dm=dm1)[0]
     if auxbasis_response:
-        de_aux += np.squeeze (vj.aux[:,:,atmlst,:])
+        de_aux += np.squeeze(vj.aux[:,:,atmlst,:])
 
     # MRH: Now I have to compute the gradient of the on-top energy
     # This involves derivatives of the orbitals that construct rho and Pi and
@@ -204,13 +204,14 @@ def mcpdft_HellmanFeynman_grad (mc, ot, veff1, veff2, mo_coeff=None, ci=None,
     twoCDM = _dms.dm2_cumulant (casdm2, casdm1)
     dm1 = lib.tag_array (dm1, mo_coeff=mo_occ, mo_occ=mo_occup[:nocc])
     make_rho = ot._numint._gen_rho_evaluator (mol, dm1, 1)[0]
-    dvxc = np.zeros ((3,nao))
-    idx = np.array ([[1,4,5,6],[2,5,7,8],[3,6,8,9]], dtype=np.int_)
+    dvxc = lib.zeros((3,nao), dtype=dm1.dtype)
+    idx = np.array([[1,4,5,6],[2,5,7,8],[3,6,8,9]], dtype=np.int32)
     # For addressing particular ao derivatives
-    if ot.xctype == 'LDA': idx = idx[:,0:1] # For LDAs, no second derivatives
+    if ot.xctype == "LDA":
+        idx = idx[:, 0:1]  # For LDAs, no second derivatives
 
     casdm2_pack = pack_casdm2(twoCDM, ncas)
-    full_atmlst = -np.ones (mol.natm, dtype=np.int_)
+    full_atmlst = -np.ones (mol.natm, dtype=np.int32)
 
     t1 = logger.timer (mc, 'PDFT HlFn quadrature setup', *t0)
     for k, ia in enumerate (atmlst):
@@ -293,20 +294,22 @@ def mcpdft_HellmanFeynman_grad (mc, ot, veff1, veff2, mo_coeff=None, ci=None,
             tmp_dv = xc_response(ot, vot, rho, Pi, w0[ip0:ip1], moval_occ, aoval, mo_occ, mo_occup, ncore, nocc,
                                  casdm2_pack, ndpi, mo_cas)
 
-            if k >=0: de_grid[k] += 2*tmp_dv.sum(1) # Grid response
-            dvxc -= tmp_dv #XC response
+            if k >= 0:
+                de_grid[k] += 2 * tmp_dv.sum(1)  # Grid response
+            dvxc -= tmp_dv  # XC response
 
             tmp_dv = None
             t1 = logger.timer (mc, ('PDFT HlFn quadrature atom {}').format (ia), *t1)
 
             rho = Pi = eot = vot = aoval = moval_occ = None
-            gc.collect ()
+            gc.collect()
 
     def coul_term(p0, p1):
-        return np.tensordot(vj[:,p0:p1], dm1[p0:p1])*2
+        return 2.0 * np.tensordot(vj[:,p0:p1], dm1[p0:p1])
 
-    de_hcore, de_coul, de_xc, de_nuc, de_renorm = sum_terms(mf_grad, mol, atmlst, dm1, dme0, coul_term,
-                                                                        dvxc)
+    de_hcore, de_coul, de_xc, de_nuc, de_renorm = sum_terms(
+        mf_grad, mol, atmlst, dm1, dme0, coul_term, dvxc
+    )
 
     logger.debug (mc, "MC-PDFT Hellmann-Feynman nuclear:\n{}".format (de_nuc))
     logger.debug (mc, "MC-PDFT Hellmann-Feynman hcore component:\n{}".format (
@@ -391,19 +394,19 @@ class Gradients (sacasscf.Gradients):
 
         g_all_state = newton_casscf.gen_g_hop (fcasscf, mo, ci[state], veff2, verbose)[0]
 
-        g_all = np.zeros (nlag)
+        g_all = lib.zeros(nlag)
         g_all[:self.ngorb] = g_all_state[:self.ngorb]
         # Eliminate gradient of self-rotation and rotation into
         # degenerate states
         spin_states = np.asarray (self.spin_states)
         idx_spin = spin_states==spin_states[state]
         e_gap = self.e_mcscf-self.e_mcscf[state] if self.nroots>1 else [0.0]
-        idx_degen = np.abs (e_gap)<sing_tol
+        idx_degen = np.abs(e_gap)<sing_tol
         idx = np.where (idx_spin & idx_degen)[0]
         assert (state in idx)
         gci_state = g_all_state[self.ngorb:]
         ci_proj = np.asarray ([ci[i].ravel () for i in idx])
-        gci_sa = np.dot (ci_proj, gci_state)
+        gci_sa = np.dot(ci_proj, gci_state)
         gci_state -= np.dot (gci_sa, ci_proj)
         gci = g_all[self.ngorb:]
         offs = 0
@@ -441,63 +444,112 @@ class Gradients (sacasscf.Gradients):
         sing_tol = getattr (self, 'sing_tol_sasa', 1e-8)
         ci = self.base.ci
         state = self.state
-        if self.nroots == 1: ci = [ci,]
-        idx_spin = [i for i in range (self.nroots)
-                    if self.spin_states[i]==self.spin_states[state]]
-        ci_blk = np.asarray ([ci[i].ravel () for i in idx_spin])
-        b_orb, b_ci = self.unpack_uniq_var (bvec)
-        b_ci_blk = np.asarray ([b_ci[i].ravel () for i in idx_spin])
-        x0 = np.zeros_like (bvec)
+        if self.nroots == 1:
+            ci = [
+                ci,
+            ]
+
+        idx_spin = [
+            i
+            for i in range(self.nroots)
+            if self.spin_states[i] == self.spin_states[state]
+        ]
+        ci_blk = np.asarray([ci[i].ravel() for i in idx_spin])
+        b_orb, b_ci = self.unpack_uniq_var(bvec)
+        b_ci_blk = np.asarray([b_ci[i].ravel() for i in idx_spin])
+        x0 = np.zeros_like(bvec)
         if self.nroots > 1:
-            b_sa = np.dot (ci_blk.conjugate (), b_ci[state].ravel ())
-            A_sa = 2 * self.weights[state] * (self.e_mcscf
-                - self.e_mcscf[state])
-            idx_null = np.abs (A_sa)<sing_tol
-            assert (idx_null[state])
+            b_sa = np.dot(ci_blk.conj(), b_ci[state].ravel())
+            A_sa = 2.0 * self.weights[state] * (self.e_mcscf - self.e_mcscf[state])
+            idx_null = np.abs(A_sa) < sing_tol
+            assert idx_null[state]
             A_sa = A_sa[idx_spin]
             idx_null = np.abs (A_sa)<sing_tol
-            if np.any (np.abs (b_sa[idx_null])>=sing_tol):
-                logger.warn (self, 'Singular Hessian in CP-MCPDFT!')
+
+            if np.any(np.abs(b_sa[idx_null]) >= sing_tol):
+                logger.warn(self, "Singular Hessian in CP-MCPDFT!")
+
             idx_null &= np.abs (b_sa)<sing_tol
             A_sa[idx_null] = sing_tol
-            x0_sa = -b_sa / A_sa # Hessian is diagonal so: easy
-            ovlp = ci_blk.conjugate () @ b_ci_blk.T
-            logger.debug (self, 'Linear response SA-SA part:\n{}'.format (
-                ovlp))
-            logger.debug (self, 'Linear response SA-CI norms:\n{}'.format (
-                linalg.norm (b_ci_blk.T - ci_blk.T @ ovlp, axis=1)))
-            if self.ngorb: logger.debug (self, 'Linear response orbital '
-                'norms:\n{}'.format (linalg.norm (bvec[:self.ngorb])))
-            logger.debug (self, 'SA-SA Lagrange multiplier for root '
-                '{}:\n{}'.format (state, x0_sa))
-            x0_orb, x0_ci = self.unpack_uniq_var (x0)
-            x0_ci[state] = np.dot (x0_sa, ci_blk).reshape (
-                self.na_states[state], self.nb_states[state])
-            x0 = self.pack_uniq_var (x0_orb, x0_ci)
+            x0_sa = -b_sa / A_sa  # Hessian is diagonal so: easy
+            ovlp = lib.dot(ci_blk.conj(), lib.transpose(b_ci_blk))
+            logger.debug(self, "Linear response SA-SA part:\n{}".format(ovlp))
+            logger.debug(
+                self,
+                "Linear response SA-CI norms:\n{}".format(
+                    linalg.norm(lib.transpose(b_ci_blk) - lib.transpose(ci_blk) @ ovlp, axis=1)
+                ),
+            )
+
+            if self.ngorb:
+                logger.debug(
+                    self,
+                    "Linear response orbital "
+                    "norms:\n{}".format(linalg.norm(bvec[: self.ngorb])),
+                )
+
+            logger.debug(
+                self,
+                "SA-SA Lagrange multiplier for root " "{}:\n{}".format(state, x0_sa),
+            )
+            x0_orb, x0_ci = self.unpack_uniq_var(x0)
+            x0_ci[state] = np.dot(x0_sa, ci_blk).reshape(
+                self.na_states[state], self.nb_states[state]
+            )
+            x0 = self.pack_uniq_var(x0_orb, x0_ci)
+
         r0 = bvec + Aop (x0)
         r0_orb, r0_ci = self.unpack_uniq_var (r0)
         r0_ci_blk = np.asarray ([r0_ci[i].ravel () for i in idx_spin])
-        ovlp = ci_blk.conjugate () @ r0_ci_blk.T
-        logger.debug (self, 'Lagrange residual SA-SA part after solving SA-SA'
-            ' part:\n{}'.format (ovlp))
-        logger.debug (self, 'Lagrange residual SA-CI norms after solving SA-SA'
-            ' part:\n{}'.format (linalg.norm (r0_ci_blk.T - ci_blk.T @ ovlp,
-            axis=1)))
-        if self.ngorb: logger.debug (self, 'Lagrange residual orbital norms '
-            'after solving SA-SA part:\n{}'.format (linalg.norm (
-                r0_orb)))
-        x0 += precond (-r0)
-        r1_orb, r1_ci = self.unpack_uniq_var (r0)
-        r1_ci_blk = np.asarray ([r1_ci[i].ravel () for i in idx_spin])
-        ovlp = ci_blk.conjugate () @ r1_ci_blk.T
-        logger.debug (self, 'Lagrange residual SA-SA part after first '
-            'precondition:\n{}'.format (ovlp))
-        logger.debug (self, 'Lagrange residual SA-CI norms after first '
-            'precondition:\n{}'.format (linalg.norm (r1_ci_blk.T - ci_blk.T @ ovlp,
-            axis=1)))
-        if self.ngorb: logger.debug (self, 'Lagrange residual orbital norms '
-            'after first precondition:\n{}'.format (linalg.norm (
-                r1_orb)))
+        ovlp = lib.dot(ci_blk.conj(), lib.transpose(r0_ci_blk))
+
+        logger.debug(
+            self,
+            "Lagrange residual SA-SA part after solving SA-SA"
+            " part:\n{}".format(ovlp),
+        )
+        logger.debug(
+            self,
+            "Lagrange residual SA-CI norms after solving SA-SA"
+            " part:\n{}".format(
+                linalg.norm(
+                    lib.transpose(r0_ci_blk) - lib.transpose(ci_blk) @ ovlp, axis=1
+                )
+            ),
+        )
+
+        if self.ngorb:
+            logger.debug(
+                self,
+                "Lagrange residual orbital norms "
+                "after solving SA-SA part:\n{}".format(linalg.norm(r0_orb)),
+            )
+
+        x0 += precond(-r0)
+        r1_orb, r1_ci = self.unpack_uniq_var(r0)
+        r1_ci_blk = np.asarray([r1_ci[i].ravel() for i in idx_spin])
+        ovlp = lib.dot(ci_blk.conj(), lib.transpose(r1_ci_blk))
+
+        logger.debug(
+            self,
+            "Lagrange residual SA-SA part after first "
+            "precondition:\n{}".format(ovlp),
+        )
+        logger.debug(
+            self,
+            "Lagrange residual SA-CI norms after first "
+            "precondition:\n{}".format(
+                linalg.norm(lib.transpose(r1_ci_blk) - lib.transpose(ci_blk) @ ovlp, axis=1)
+            ),
+        )
+
+        if self.ngorb:
+            logger.debug(
+                self,
+                "Lagrange residual orbital norms "
+                "after first precondition:\n{}".format(linalg.norm(r1_orb)),
+            )
+
         return x0
 
     def kernel (self, **kwargs):
@@ -506,16 +558,20 @@ class Gradients (sacasscf.Gradients):
         '''
         state = kwargs['state'] if 'state' in kwargs else self.state
         if state is None:
-            raise NotImplementedError ('Gradient of PDFT state-average energy')
-        self.state = state # Not the best code hygiene maybe
-        mo = kwargs['mo'] if 'mo' in kwargs else self.base.mo_coeff
-        ci = kwargs['ci'] if 'ci' in kwargs else self.base.ci
-        if isinstance (ci, np.ndarray): ci = [ci] # hack hack hack...
-        kwargs['ci'] = ci
-        if ('veff1' not in kwargs) or ('veff2' not in kwargs):
-            kwargs['veff1'], kwargs['veff2'] = self.base.get_pdft_veff (mo,
-                ci, incl_coul=True, paaa_only=True, state=state)
-        return super().kernel (**kwargs)
+            raise NotImplementedError("Gradient of PDFT state-average energy")
+        self.state = state  # Not the best code hygiene maybe
+        mo = kwargs["mo"] if "mo" in kwargs else self.base.mo_coeff
+        ci = kwargs["ci"] if "ci" in kwargs else self.base.ci
+        if isinstance(ci, np.ndarray):
+            ci = [ci]  # hack hack hack...
+
+        kwargs["ci"] = ci
+        if ("veff1" not in kwargs) or ("veff2" not in kwargs):
+            kwargs["veff1"], kwargs["veff2"] = self.base.get_pdft_veff(
+                mo, ci, incl_coul=True, paaa_only=True, state=state
+            )
+
+        return super().kernel(**kwargs)
 
     def project_Aop (self, Aop, ci, state):
         '''Wrap the Aop function to project out redundant degrees of
@@ -543,13 +599,18 @@ class Gradients (sacasscf.Gradients):
             Ax = Aop (x)
             x_orb, x_ci = self.unpack_uniq_var (x)
             Ax_orb, Ax_ci = self.unpack_uniq_var (Ax)
-            for i, j in product (range (self.nroots), repeat=2):
-                if self.spin_states[i] != self.spin_states[j]: continue
-                Ax_ci[i] -= np.dot (Ax_ci[i].ravel (), ci[j].ravel ()) * ci[j]
+
+            for i, j in product(range(self.nroots), repeat=2):
+                if self.spin_states[i] != self.spin_states[j]:
+                    continue
+
+                Ax_ci[i] -= np.inner(Ax_ci[i].ravel(), ci[j].ravel()) * ci[j]
+
             # Add back in the SA rotation part but from the true energy conds
-            x_sa = np.dot (ci_blk.conjugate (), x_ci[state].ravel ())
-            Ax_ci[state] += np.dot (x_sa * A_sa, ci_blk).reshape (
-                Ax_ci[state].shape)
-            Ax = self.pack_uniq_var (Ax_orb, Ax_ci)
+            x_sa = np.dot(ci_blk.conj(), x_ci[state].ravel())
+            Ax_ci[state] += np.dot(x_sa * A_sa, ci_blk).reshape(Ax_ci[state].shape)
+            Ax = self.pack_uniq_var(Ax_orb, Ax_ci)
+
             return Ax
+
         return my_Aop

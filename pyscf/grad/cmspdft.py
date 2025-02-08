@@ -14,11 +14,9 @@
 # limitations under the License.
 #
 import numpy as np
-from scipy import linalg
-from pyscf import ao2mo, lib
+from pyscf import lib
 from pyscf.lib import logger
 from pyscf.mcscf import newton_casscf
-import copy
 from functools import reduce
 from pyscf.mcpdft.cmspdft import coulomb_tensor
 
@@ -59,9 +57,9 @@ def diab_response (mc_grad, Lis, mo=None, ci=None, eris=None, **kwargs):
     nmo = mo.shape[1]
 
     # CI vector shift
-    L = np.zeros ((nroots, nroots), dtype=Lis.dtype)
+    L = lib.zeros((nroots, nroots), dtype=Lis.dtype)
     L[np.tril_indices (nroots, k=-1)] = Lis[:]
-    L -= L.T
+    L -= lib.transpose(L)
     ci_arr = np.asarray (ci)
     Lci = np.tensordot (L, ci_arr, axes=1)
 
@@ -77,7 +75,7 @@ def diab_response (mc_grad, Lis, mo=None, ci=None, eris=None, **kwargs):
     edm1 += edm1.transpose (0,2,1)
 
     # Potentials
-    aapa = np.zeros ([ncas,ncas,nmo,ncas], dtype=dm1.dtype)
+    aapa = lib.zeros ([ncas,ncas,nmo,ncas], dtype=dm1.dtype)
     for i in range (ncas):
         j = i + ncore
         aapa[i,:,:,:] = eris.papa[j][:,:,:]
@@ -85,16 +83,16 @@ def diab_response (mc_grad, Lis, mo=None, ci=None, eris=None, **kwargs):
     evj = np.tensordot (edm1, aapa, axes=2)
 
     # Orbital degree of freedom
-    Rorb = np.zeros ((nmo,nmo), dtype=vj[0].dtype)
-    Rorb[:,ncore:nocc] = sum ([np.dot (v, ed) + np.dot (ev, d)
+    Rorb = lib.zeros ((nmo,nmo), dtype=vj[0].dtype)
+    Rorb[:,ncore:nocc] = sum ([lib.dot (v, ed) + lib.dot (ev, d)
         for v, d, ev, ed in zip (vj, dm1, evj, edm1)])
-    Rorb -= Rorb.T
+    Rorb -= lib.transpose(Rorb)
 
     # CI degree of freedom
     w = coulomb_tensor (mc, mo_coeff=mo, ci=ci, h2eff=aapa[:,:,ncore:nocc,:])
-    const_IJ = -4*np.einsum ('jiik,ik->ij', w, L)
-    const_IJ -= 2*np.einsum ('iijk,ik->ij', w, L)
-    const_IJ += 2*np.einsum ('jkkk,ik->ij', w, L)
+    const_IJ = -4.0*np.einsum ('jiik,ik->ij', w, L)
+    const_IJ -= 2.0*np.einsum ('iijk,ik->ij', w, L)
+    const_IJ += 2.0*np.einsum ('jkkk,ik->ij', w, L)
     Rci = np.tensordot (const_IJ, ci_arr, axes=1) # Delta_IJ |J> term
 
     def contract (v,c):
@@ -124,23 +122,25 @@ def diab_response_o0 (mc_grad, Lis, mo=None, ci=None, eris=None, **kwargs):
     if eris is None: eris = mc.ao2mo (mo)
     ncore, ncas, nelecas = mc.ncore, mc.ncas, mc.nelecas
     nroots, nocc, nmo = mc_grad.nroots, ncore + ncas, mo.shape[1]
-    moH = mo.conj ().T
+    moH = lib.transpose(mo.conj())
 
     # CI vector shift
-    L = np.zeros ((nroots, nroots), dtype=Lis.dtype)
+    L = lib.zeros ((nroots, nroots), dtype=Lis.dtype)
     L[np.tril_indices (nroots, k=-1)] = Lis[:]
-    L -= L.T
+    L -= lib.transpose(L)
     ci_arr = np.asarray (ci)
     Lci = list (np.tensordot (L, ci_arr, axes=1))
-    x = mc_grad.pack_uniq_var (np.zeros ((nmo,nmo)), Lci)
+    x = mc_grad.pack_uniq_var(lib.zeros((nmo,nmo), dtype=Lci[0].dtype), Lci)
 
     # Fake Hamiltonian!
-    h1e_mo = moH @ mc.get_hcore () @ mo
+    h1e_mo = lib.dot(moH, lib.dot(mc.get_hcore(), mo))
     feris = mc.ao2mo (mo)
+    feris.papa = np.zeros_like(feris.papa)
+
     for i in range (nmo):
-        feris.papa[i][:,:,:] = 0.0
         feris.ppaa[i][:ncore,:,:] = 0.0
         feris.ppaa[i][nocc:,:,:] = 0.0
+
     feris.vhf_c[:,:] = -h1e_mo.copy ()
     from pyscf.mcscf.newton_casscf import _pack_ci_get_H as getH
     from pyscf.mcscf import addons
@@ -248,16 +248,16 @@ def diab_grad (mc_grad, Lis, atmlst=None, mo=None, ci=None, eris=None,
     mol = mc_grad.mol
     ncore, ncas, nelecas = mc.ncore, mc.ncas, mc.nelecas
     nroots, nocc, nmo = mc_grad.nroots, ncore + ncas, mo.shape[1]
-    moH = mo.conj ().T
+    moH = lib.transpose(mo.conj())
     mo_cas = mo[:,ncore:nocc]
     moH_cas = moH[ncore:nocc,:]
     if mf_grad is None: mf_grad = mc._scf.nuc_grad_method()
     if atmlst is None: atmlst = list (range(mol.natm))
 
     # CI vector shift
-    L = np.zeros ((nroots, nroots), dtype=Lis.dtype)
+    L = lib.zeros ((nroots, nroots), dtype=Lis.dtype)
     L[np.tril_indices (nroots, k=-1)] = Lis[:]
-    L -= L.T
+    L -= lib.transpose(L)
     ci_arr = np.asarray (ci)
     Lci = np.tensordot (L, ci_arr, axes=1)
 
@@ -265,40 +265,43 @@ def diab_grad (mc_grad, Lis, atmlst=None, mo=None, ci=None, eris=None,
     dm1 = np.stack (mc.fcisolver.states_make_rdm1 (ci, ncas, nelecas), axis=0)
     edm1 = np.stack (mc.fcisolver.states_trans_rdm12 (Lci, ci, ncas,
         nelecas)[0], axis=0)
-    edm1 += edm1.transpose (0,2,1)
+    edm1 += lib.transpose(edm1, (0,2,1))
     dm1_ao = reduce (np.dot, (mo_cas, dm1, moH_cas)).transpose (1,0,2)
     edm1_ao = reduce (np.dot, (mo_cas, edm1, moH_cas)).transpose (1,0,2)
 
     # Potentials and operators
-    aapa = np.zeros ([nmo,]+[ncas,]*3, dtype=dm1.dtype)
-    for i in range (nmo): aapa[i] = eris.ppaa[i][ncore:nocc,:,:]
-    aapa = aapa.transpose (2,3,0,1)
-    vj = np.tensordot (dm1, aapa, axes=2)
-    evj = np.tensordot (edm1, aapa, axes=2)
-    dvj_all = mf_grad.get_j (mc.mol, list(dm1_ao) + list(edm1_ao))
-    dvj_aux = getattr (dvj_all, 'aux', np.zeros ((nroots, nroots, mol.natm,
-        3)))
-    dvj = np.stack (dvj_all[:nroots], axis=1)
-    devj = np.stack (dvj_all[nroots:], axis=1)
+    aapa = lib.zeros((nmo, ncas, ncas, ncas), dtype=dm1.dtype)
+
+    for i in range(nmo):
+        aapa[i] = eris.ppaa[i][ncore:nocc, :, :]
+
+    aapa = aapa.transpose(2, 3, 0, 1)
+    vj = np.tensordot(dm1, aapa, axes=2)
+    evj = np.tensordot(edm1, aapa, axes=2)
+    dvj_all = mf_grad.get_j(mc.mol, list(dm1_ao) + list(edm1_ao))
+    dvj_aux = getattr(dvj_all, "aux", lib.zeros((nroots, nroots, mol.natm, 3)))
+    dvj = np.stack(dvj_all[:nroots], axis=1)
+    devj = np.stack(dvj_all[nroots:], axis=1)
 
     # Generalized Fock and overlap operator
-    gfock = np.zeros ([nmo,nmo], dtype=vj.dtype)
-    gfock[:,ncore:nocc] = sum ([np.dot (v, ed) + np.dot (ev, d)
-        for v, d, ev, ed in zip (vj, dm1, evj, edm1)])
-    dme0 = reduce (np.dot, (mo, (gfock+gfock.T)*.5, moH))
-    s1 = mf_grad.get_ovlp (mc.mol)
+    gfock = lib.zeros([nmo, nmo], dtype=vj.dtype)
+    gfock[:, ncore:nocc] = sum(
+        [lib.dot(v, ed) + lib.dot(ev, d) for v, d, ev, ed in zip(vj, dm1, evj, edm1)]
+    )
+    dme0 = lib.dot(mo, lib.dot(lib.transpose_sum(gfock), moH), alpha=0.5)
+    s1 = mf_grad.get_ovlp(mc.mol)
 
     # Crunch
-    de_direct = np.zeros ((len (atmlst), 3))
-    de_renorm = np.zeros ((len (atmlst), 3))
+    de_direct = lib.zeros ((len (atmlst), 3), dtype=dme0.dtype)
+    de_renorm = lib.zeros ((len (atmlst), 3), dtype=dme0.dtype)
     aoslices = mol.aoslice_by_atom()
+
     for k, ia in enumerate(atmlst):
         shl0, shl1, p0, p1 = aoslices[ia]
-        de_renorm[k] -= lib.einsum('xpq,pq->x', s1[:,p0:p1], dme0[p0:p1]) * 2
-        de_direct[k] += lib.einsum('xipq,ipq->x', dvj[:,:,p0:p1],
-            edm1_ao[:,p0:p1]) * 2
-        de_direct[k] += lib.einsum('xipq,ipq->x', devj[:,:,p0:p1],
-            dm1_ao[:,p0:p1]) * 2
+        de_renorm[k] -= 2.0 * np.tensordot(s1[:, p0:p1], dme0[p0:p1])
+        de_direct[k] += 2.0 * np.tensordot(dvj[:, :, p0:p1], edm1_ao[:, p0:p1], axes=3)
+        de_direct[k] += 2.0 * np.tensordot(devj[:, :, p0:p1], dm1_ao[:, p0:p1], axes=3)
+
     dvj_aux = dvj_aux[:,:,atmlst,:]
     de_aux = (np.trace (dvj_aux, offset=nroots, axis1=0, axis2=1)
             + np.trace (dvj_aux, offset=-nroots, axis1=0, axis2=1))
@@ -321,9 +324,9 @@ def diab_grad_o0 (mc_grad, Lis, atmlst=None, mo=None, ci=None, eris=None,
     if mf_grad is None: mf_grad = mc._scf.nuc_grad_method()
 
     # CI vector shift
-    L = np.zeros ((nroots, nroots), dtype=Lis.dtype)
+    L = lib.zeros ((nroots, nroots), dtype=Lis.dtype)
     L[np.tril_indices (nroots, k=-1)] = Lis[:]
-    L -= L.T
+    L -= lib.transpose(L)
     ci_arr = np.asarray (ci)
     Lci = list (np.tensordot (L, ci_arr, axes=1))
 
@@ -338,49 +341,17 @@ def diab_grad_o0 (mc_grad, Lis, atmlst=None, mo=None, ci=None, eris=None,
         return sum (tm1), sum (tm2)
 
     from pyscf.grad.sacasscf import Lci_dot_dgci_dx
-    with lib.temporary_env (mc.fcisolver, trans_rdm12=trans_rdm12):
-        de = Lci_dot_dgci_dx (Lci, mc.weights, mc, mo_coeff=mo, ci=ci,
-            atmlst=atmlst, eris=eris, mf_grad=mf_grad)
+
+    with lib.temporary_env(mc.fcisolver, trans_rdm12=trans_rdm12):
+        de = Lci_dot_dgci_dx(
+            Lci,
+            mc.weights,
+            mc,
+            mo_coeff=mo,
+            ci=ci,
+            atmlst=atmlst,
+            eris=eris,
+            mf_grad=mf_grad,
+        )
+
     return de
-
-if __name__ == '__main__':
-    import math
-    from pyscf import scf, gto, mcscf
-    from pyscf.fci import csf_solver
-    from pyscf.mcpdft.pdft_feff import vector_error
-    xyz = '''O  0.00000000   0.08111156   0.00000000
-             H  0.78620605   0.66349738   0.00000000
-             H -0.78620605   0.66349738   0.00000000'''
-    mol = gto.M (atom=xyz, basis='6-31g', symmetry=False, output='cmspdft.log',
-        verbose=lib.logger.DEBUG)
-    mf = scf.RHF (mol).run ()
-    mc = mcscf.CASSCF (mf, 4, 4).set (fcisolver = csf_solver (mol, 1))
-    mc = mc.state_average ([1.0/3,]*3).run ()
-    ci_arr = np.asarray (mc.ci)
-
-    mc_grad = mc.nuc_grad_method ()
-    Lis = math.pi * (np.random.rand (3) - 0.5)
-    eris = mc.ao2mo (mc.mo_coeff)
-
-    dw_test = diab_response (mc_grad, Lis, mo=mc.mo_coeff, ci=mc.ci,
-        eris=eris)
-    dworb_test, dwci_test = mc_grad.unpack_uniq_var (dw_test)
-    dwci_test = np.asarray (dwci_test)
-    dwis_test = lib.einsum ('pab,qab->pq', dwci_test, ci_arr.conj ())
-    dwci_test -= lib.einsum ('pq,qab->pab', dwis_test, ci_arr)
-    dw_ref = diab_response_o0 (mc_grad, Lis, mo=mc.mo_coeff, ci=mc.ci,
-        eris=eris)
-    dworb_ref, dwci_ref = mc_grad.unpack_uniq_var (dw_ref)
-    dwci_ref = np.asarray (dwci_ref)
-    dwis_ref = lib.einsum ('pab,qab->pq', dwci_ref, ci_arr.conj ())
-    dwci_ref -= lib.einsum ('pq,qab->pab', dwis_ref, ci_arr)
-    dh_test = diab_grad (mc_grad, Lis, mo=mc.mo_coeff, ci=mc.ci, eris=eris)
-    dh_ref = diab_grad_o0 (mc_grad, Lis, mo=mc.mo_coeff, ci=mc.ci, eris=eris)
-
-    print ("dworb:", vector_error (dworb_test, dworb_ref), linalg.norm (
-        dworb_ref))
-    print ("dwci:", vector_error (dwci_test, dwci_ref), linalg.norm (dwci_ref))
-    print ("dwis:", vector_error (dwis_test, dwis_ref), linalg.norm (dwis_ref))
-    print ("dh:", vector_error (dh_test, dh_ref), linalg.norm (dh_ref))
-
-    print (dh_test, '\n', dh_ref)

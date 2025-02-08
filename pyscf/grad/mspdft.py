@@ -23,7 +23,6 @@ from pyscf.lib import logger
 from pyscf.fci import direct_spin1
 from pyscf.mcscf import mc1step, newton_casscf
 from pyscf.grad import rhf as rhf_grad
-from pyscf.grad import casscf as casscf_grad
 from pyscf.grad import sacasscf as sacasscf_grad
 from pyscf import __config__
 from itertools import product
@@ -73,8 +72,8 @@ def make_rdm12_heff_offdiag (mc, ci, si_bra, si_ket):
     ci_bra = np.tensordot (si_bra, ci_arr, axes=1)
     ci_ket = np.tensordot (si_ket, ci_arr, axes=1)
     casdm1, casdm2 = direct_spin1.trans_rdm12 (ci_bra, ci_ket, ncas, nelecas)
-    ddm1 = np.zeros ((nroots, ncas, ncas), dtype=casdm1.dtype)
-    ddm2 = np.zeros ((nroots, ncas, ncas, ncas, ncas), dtype=casdm1.dtype)
+    ddm1 = lib.zeros((nroots, ncas, ncas), dtype=casdm1.dtype)
+    ddm2 = lib.zeros((nroots, ncas, ncas, ncas, ncas), dtype=casdm1.dtype)
     for i in range (nroots):
         ddm1[i,...], ddm2[i,...] = direct_spin1.make_rdm12 (ci[i], ncas,
             nelecas)
@@ -99,17 +98,20 @@ def mspdft_heff_response (mc_grad, mo=None, ci=None,
     if heff_mcscf is None: heff_mcscf = mc.heff_mcscf
     if eris is None: eris = mc.ao2mo (mo)
     nroots, ncore = mc_grad.nroots, mc.ncore
-    moH = mo.conj ().T
+    moH = lib.transpose(mo.conj())
 
     # Orbital rotation (no all-core DM terms allowed!)
     # (Factor of 2 is convention difference between mc1step and newton_casscf)
     casdm1, casdm2 = make_rdm12_heff_offdiag (mc, ci, si_bra, si_ket)
-    casdm1 = 0.5 * (casdm1 + casdm1.T)
+    lib.transpose_sum(casdm1, inplace=True)
+    casdm1 *= 0.5
     casdm2 = 0.5 * (casdm2 + casdm2.transpose (1,0,3,2))
     vnocore = eris.vhf_c.copy ()
-    vnocore[:,:ncore] = -moH @ mc.get_hcore () @ mo[:,:ncore]
+    vnocore[:,:ncore] = lib.dot(moH, lib.dot(mc.get_hcore(), mo[:,:ncore]), alpha=-1.0)
+
     with lib.temporary_env (eris, vhf_c=vnocore):
-        g_orb = 2 * mc1step.gen_g_hop (mc, mo, 1, casdm1, casdm2, eris)[0]
+        g_orb = 2.0 * mc1step.gen_g_hop (mc, mo, 1, casdm1, casdm2, eris)[0]
+
     g_orb = mc.unpack_uniq_var (g_orb)
 
     # Intermediate state rotation (TODO: state-average-mix generalization)
@@ -118,8 +120,8 @@ def mspdft_heff_response (mc_grad, mo=None, ci=None,
     si2 = si_bra * si_ket
     g_is  = np.multiply.outer (si_ket, braH)
     g_is += np.multiply.outer (si_bra, Hket)
-    g_is -= 2 * si2[:,None] * heff_mcscf
-    g_is -= g_is.T
+    g_is -= 2.0 * si2[:,None] * heff_mcscf
+    g_is -= lib.transpose(g_is)
     g_is = g_is[np.tril_indices (nroots, k=-1)]
 
     return g_orb, g_is
@@ -147,9 +149,10 @@ def mspdft_heff_HellmanFeynman (mc_grad, atmlst=None, mo=None, ci=None,
     # CASSCF grad with effective RDMs
     t0 = (logger.process_clock (), logger.perf_counter ())
     casdm1, casdm2 = make_rdm12_heff_offdiag (mc, ci, si_bra, si_ket)
-    casdm1 = 0.5 * (casdm1 + casdm1.T)
+    lib.transpose_sum(casdm1, inplace=True)
+    casdm1 *= 0.5
     casdm2 = 0.5 * (casdm2 + casdm2.transpose (1,0,3,2))
-    dm12 = lambda * args: (casdm1, casdm2)
+    dm12 = lambda *args: (casdm1, casdm2)
     fcasscf = mc_grad.make_fcasscf (state=ket,
         fcisolver_attr={'make_rdm12' : dm12})
     # TODO: DFeri functionality
@@ -159,19 +162,22 @@ def mspdft_heff_HellmanFeynman (mc_grad, atmlst=None, mo=None, ci=None,
     de = fcasscf_grad.kernel (mo_coeff=mo, ci=ci0, atmlst=atmlst, verbose=0)
 
     # subtract nuc-nuc and core-core (patching out simplified gfock terms)
-    moH = mo.conj ().T
-    f0 = (moH @ mc.get_hcore () @ mo) + eris.vhf_c
-    mo_energy = f0.diagonal ().copy ()
-    mo_occ = np.zeros_like (mo_energy)
+    moH = lib.transpose(mo.conj())
+    f0 = lib.dot(moH, lib.dot(mc.get_hcore(), mo)) + eris.vhf_c
+    mo_energy = f0.diagonal().copy()
+    mo_occ = np.zeros_like(mo_energy)
     mo_occ[:ncore] = 2.0
-    f0 *= mo_occ[None,:]
-    dme0 = lambda * args: mo @ ((f0+f0.T)*.5) @ moH
-    with lib.temporary_env (mf_grad, make_rdm1e=dme0, verbose=0):
-        with lib.temporary_env (mf_grad.base, mo_coeff=mo, mo_occ=mo_occ):
+    f0 *= mo_occ[None, :]
+    dme0 = lambda *args: lib.dot(mo, lib.dot(lib.transpose_sum(f0), moH), alpha=0.5)
+
+    with lib.temporary_env(mf_grad, make_rdm1e=dme0, verbose=0):
+        with lib.temporary_env(mf_grad.base, mo_coeff=mo, mo_occ=mo_occ):
             # Second level there should become unnecessary in future, if anyone
             # ever gets around to cleaning up pyscf.df.grad.rhf & pyscf.grad.rhf
-            dde = mf_grad.kernel (mo_coeff=mo, mo_energy=mo_energy, mo_occ=mo_occ,
-                atmlst=atmlst)
+            dde = mf_grad.kernel(
+                mo_coeff=mo, mo_energy=mo_energy, mo_occ=mo_occ, atmlst=atmlst
+            )
+
     de -= dde
     log.debug ('MS-PDFT gradient off-diagonal H-F terms:\n{}'.format (de))
     log.timer ('MS-PDFT gradient off-diagonal H-F terms', *t0)
@@ -201,8 +207,10 @@ def get_diabfns (obj):
     '''
     if obj.upper () == 'CMS':
         from pyscf.grad.cmspdft import diab_response, diab_grad
+
     else:
         raise RuntimeError ('MS-PDFT type not supported')
+
     return diab_response, diab_grad
 
 # TODO: docstring? especially considering the "si_bra," "si_ket"
@@ -236,6 +244,7 @@ class Gradients (mcpdft_grad.Gradients):
 
     def diab_response (self, Lis, **kwargs):
         return self._diab_response (self, Lis, **kwargs)
+
     def diab_grad (self, Lis, **kwargs):
         return self._diab_grad (self, Lis, **kwargs)
 
@@ -255,7 +264,8 @@ class Gradients (mcpdft_grad.Gradients):
         if mo is None: mo = self.base.mo_coeff
         if ci is None: ci = self.base.ci
         if si is None: si = self.base.si
-        if isinstance (ci, np.ndarray): ci = [ci] # hack hack hack...
+        if isinstance (ci, np.ndarray):
+            ci = [ci] # hack hack hack...
         if state is None:
             raise NotImplementedError ('Gradient of PDFT state-average energy')
         self.state = state # Not the best code hygiene maybe
@@ -286,32 +296,47 @@ class Gradients (mcpdft_grad.Gradients):
 
     def _get_is_component (self, xci, ci=None, symm=-1):
         # TODO: state-average-mix
-        if ci is None: ci = self.base.ci
+        if ci is None:
+            ci = self.base.ci
+
         nroots = self.nroots
         xci = np.asarray (xci).reshape (nroots, -1)
         ci = np.asarray (ci).reshape (nroots, -1)
-        xis = np.dot (xci.conj (), ci.T)
-        if symm > -1: xis -= xis.T
+        xis = lib.dot(xci.conj(), lib.transpose(ci))
+
+        if symm > -1:
+            xis -= lib.transpose(xis)
+
         else:
-            assert (np.amax (np.abs (xis + xis.T)) < 1e-8), '{}'.format (xis)
+            assert np.amax (np.abs(lib.transpose_sum(xis)) < 1e-8), '{}'.format (xis)
+
         return xis[np.tril_indices (nroots, k=-1)]
 
     def _separate_is_component (self, xci, ci=None, symm=-1):
         # TODO: state-average-mix
         is_list = isinstance (xci, list)
         is_tuple = isinstance (xci, tuple)
-        if ci is None: ci = self.base.ci
+
+        if ci is None: 
+            ci = self.base.ci
+
         nroots = self.nroots
         ishape = np.asarray (xci).shape
         xci = np.asarray (xci).reshape (nroots, -1)
         xci = np.asarray (xci).reshape (nroots, -1)
         ci = np.asarray (ci).reshape (nroots, -1)
-        xis = np.dot (xci.conj (), ci.T)
-        xci -= np.dot (xis.conj (), ci)
+        xis = lib.dot (xci.conj (), lib.transpose(ci))
+        xci -= lib.dot (xis.conj (), ci)
         xci = xci.reshape (ishape)
-        if is_list: xci = list (xci)
-        elif is_tuple: xci = tuple (xci)
-        if symm > -1: xis -= xis.T
+
+        if is_list:
+            xci = list (xci)
+
+        elif is_tuple: 
+            xci = tuple(xci)
+
+        if symm > -1: 
+            xis -= lib.transpose(xis)
         #else:
         #    assert (np.amax (np.abs (xis + xis.T)) < 1e-8), '{}'.format (xis)
         xis = xis[np.tril_indices (nroots, k=-1)]
@@ -334,7 +359,7 @@ class Gradients (mcpdft_grad.Gradients):
 
         # Diagonal: PDFT component
         nlag = self.nlag-self.nis
-        g_all_pdft = np.zeros (nlag)
+        g_all_pdft = lib.zeros(nlag, dtype=mo.dtype)
         for i, (amp, c, v1, v2) in enumerate (zip (si_diag, ci, veff1, veff2)):
             if not amp: continue
             g_i = mcpdft_grad.Gradients.get_wfn_response (self,
@@ -385,35 +410,40 @@ class Gradients (mcpdft_grad.Gradients):
         elif eris is None:
             eris = self.eris
         if d2f is None: d2f = self.base.diabatizer (ci=ci)[2]
-        ham_od = self.base.get_heff_offdiag ()
-        ham_od += ham_od.T # This corresponds to the arbitrary newton_casscf*2
+        ham_od = lib.transpose_sum(self.base.get_heff_offdiag())
         fcasscf = self.make_fcasscf_sa ()
         hop, Adiag = newton_casscf.gen_g_hop (fcasscf, mo, ci, eris,
             verbose)[2:]
         ngorb, nci = self.ngorb, self.nci
+
         # TODO: cacheing diab_response? or an x=0 branch?
-        def Aop (x):
-            x_v, x_is = x[:ngorb+nci], x[ngorb+nci:]
-            Ax_v = hop (x_v) + self.diab_response (x_is, mo=mo, ci=ci,
-                eris=eris)
-            x_c = self.unpack_uniq_var (x_v)[1]
-            Ax_is = np.dot (d2f, x_is)
-            Ax_o, Ax_c = self.unpack_uniq_var (Ax_v)
-            Ax_c, Ax_is2 = self._separate_is_component (Ax_c)
-            Ax_c_od = list (np.tensordot (-ham_od, np.stack (x_c, axis=0),
-                axes=1))
-            Ax_c = [a1 + (w*a2) for a1, a2, w in zip (Ax_c, Ax_c_od,
-                self.base.weights)]
-            return self.pack_uniq_var (Ax_o, Ax_c, Ax_is)
+        def Aop(x):
+            x_v, x_is = x[: ngorb + nci], x[ngorb + nci :]
+            Ax_v = hop(x_v) + self.diab_response(x_is, mo=mo, ci=ci, eris=eris)
+            x_c = self.unpack_uniq_var(x_v)[1]
+            Ax_is = np.dot(d2f, x_is)
+            Ax_o, Ax_c = self.unpack_uniq_var(Ax_v)
+            Ax_c, Ax_is2 = self._separate_is_component(Ax_c)
+            Ax_c_od = list(np.tensordot(-ham_od, np.stack(x_c, axis=0), axes=1))
+            Ax_c = [
+                a1 + (w * a2) for a1, a2, w in zip(Ax_c, Ax_c_od, self.base.weights)
+            ]
+            return self.pack_uniq_var(Ax_o, Ax_c, Ax_is)
+
         return Aop, Adiag
 
-    def get_lagrange_precond (self, Adiag, level_shift=None, ci=None, d2f=None,
-            **kwargs):
-        if level_shift is None: level_shift = self.level_shift
-        if ci is None: ci = self.base.ci
-        if d2f is None: d2f = self.base.diabatizer (ci=ci)[2]
-        return MSPDFTLagPrec (Adiag=Adiag, level_shift=level_shift, ci=ci,
-            d2f=d2f, grad_method=self)
+    def get_lagrange_precond(
+        self, Adiag, level_shift=None, ci=None, d2f=None, **kwargs
+    ):
+        if level_shift is None:
+            level_shift = self.level_shift
+        if ci is None:
+            ci = self.base.ci
+        if d2f is None:
+            d2f = self.base.diabatizer(ci=ci)[2]
+        return MSPDFTLagPrec(
+            Adiag=Adiag, level_shift=level_shift, ci=ci, d2f=d2f, grad_method=self
+        )
 
     def get_ham_response (self, si_bra=None, si_ket=None, state=None, mo=None,
             ci=None, si=None, eris=None, veff1=None, veff2=None, mf_grad=None,
@@ -557,7 +587,7 @@ class Gradients (mcpdft_grad.Gradients):
                 pass
         def _debug_cispace (xci, label):
             log.debug ('%s', label)
-            xci_norm = [np.dot (c.ravel (), c.ravel ()) for c in xci]
+            xci_norm = [np.inner(c.ravel (), c.ravel ()) for c in xci]
             try:
                 xci_ss = self.base.fcisolver.states_spin_square (xci,
                     self.base.ncas, self.base.nelecas)[0]
@@ -575,10 +605,10 @@ class Gradients (mcpdft_grad.Gradients):
                     xci_multip)):
                 log.debug ((' State {} norm = {:.7e} ; <S^2> = {:.7f} ; 2S+1'
                             ' = {:.7f}').format (ix, norm, ss, multip))
-            ovlp = np.zeros ((nroots, nroots), dtype=xci[0].dtype)
+            ovlp = lib.zeros ((nroots, nroots), dtype=xci[0].dtype)
             for i, j in product (range (nroots), repeat=2):
                 if self.spin_states[i] != self.spin_states[j]: continue
-                ovlp[i,j] = np.dot (xci[i].ravel (), ci[j].ravel ())
+                ovlp[i,j] = np.inner(xci[i].ravel (), ci[j].ravel ())
             log.debug (' Overlap matrix with CI array:')
             fmt_str = '  ' + ' '.join (['{:8.1e}',]*nroots)
             for row in ovlp: log.debug (fmt_str.format (*row))
@@ -655,29 +685,12 @@ class MSPDFTLagPrec (sacasscf_grad.SACASLagPrec):
         Mxis = np.dot (self.d2f_evecs, Mxis)
         return Mxis
 
-    def do_sing_warn (self):
-        if self.sing_warned: return
-        self.log.warn ('Model-space frame-rotation Hessian is singular! '
-                        'Response equations may not be solvable to arbitrary '
-                        'precision!')
+    def do_sing_warn(self):
+        if self.sing_warned:
+            return
+        self.log.warn(
+            "Model-space frame-rotation Hessian is singular! "
+            "Response equations may not be solvable to arbitrary "
+            "precision!"
+        )
         self.sing_warned = True
-
-
-
-if __name__ == '__main__':
-    # Test mspdft_heff_response and mspdft_heff_HellmannFeynman by trying to
-    # reproduce SA-CASSCF derivatives in an arbitrary basis
-    import math
-    from pyscf import scf, gto, mcscf
-    from pyscf.fci import csf_solver
-    xyz = '''O  0.00000000   0.08111156   0.00000000
-             H  0.78620605   0.66349738   0.00000000
-             H -0.78620605   0.66349738   0.00000000'''
-    mol = gto.M (atom=xyz, basis='6-31g', symmetry=False, output='mspdft.log',
-        verbose=lib.logger.DEBUG)
-    mf = scf.RHF (mol).run ()
-    mc = mcpdft.CASSCF (mf, 'tPBE', 4, 4).set (fcisolver = csf_solver (mol, 1))
-    mc = mc.multi_state ([1.0/3,]*3, 'cms').run ()
-    mc_grad = Gradients (mc)
-    de = np.stack ([mc_grad.kernel (state=i) for i in range (3)], axis=0)
-
